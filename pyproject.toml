@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# ci: lightweight subset used in GitHub Actions (no torch, no xgboost)
+# ci: lightweight subset for GitHub Actions (no torch, no xgboost)
 ci = [
     "numpy>=1.26",
     "scipy>=1.11",
@@ -54,7 +54,7 @@ dev = [
 ]
 
 # NOTE: [project.scripts] intentionally omitted.
-# Pipeline stages are run directly as scripts/01_generate_layouts.py etc.
+# Pipeline stages are invoked directly: python scripts/01_generate_layouts.py
 # Filenames starting with digits are not valid Python module entry points.
 
 [tool.ruff]
@@ -64,10 +64,9 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
 ignore = ["E501"]
-exclude = ["scripts/"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # allow assert in tests
+"tests/**" = ["S101"]
 
 [tool.black]
 line-length = 100

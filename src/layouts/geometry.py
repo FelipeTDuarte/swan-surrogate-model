@@ -1,10 +1,15 @@
 """Geometry validation for WEC layouts — source of truth for the GA."""
 from __future__ import annotations
+
 import numpy as np
 
 
-def validate_layout(layout: np.ndarray, n_wecs: int, min_spacing: float,
-                    domain_bounds: dict) -> tuple[bool, list[str]]:
+def validate_layout(
+    layout: np.ndarray,
+    n_wecs: int,
+    min_spacing: float,
+    domain_bounds: dict,
+) -> tuple[bool, list[str]]:
     """
     Validate a WEC layout array of shape (n_wecs, 2).
 

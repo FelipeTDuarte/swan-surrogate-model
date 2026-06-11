@@ -1,7 +1,6 @@
 """Unit tests for geometry validation."""
 import numpy as np
-import pytest
-from src.layouts.geometry import validate_layout, canonical_order
+from src.layouts.geometry import canonical_order, validate_layout
 
 DOMAIN = {"x": [0.0, 5000.0], "y": [0.0, 5000.0]}
 N = 4
@@ -9,7 +8,7 @@ SPACING = 50.0
 
 
 def _make_valid_layout():
-    return np.array([[100., 100.], [200., 100.], [100., 200.], [200., 200.]])
+    return np.array([[100.0, 100.0], [200.0, 100.0], [100.0, 200.0], [200.0, 200.0]])
 
 
 def test_valid_layout():
@@ -32,12 +31,12 @@ def test_out_of_bounds():
 
 
 def test_min_spacing_violation():
-    layout = np.array([[100., 100.], [100., 110.], [300., 300.], [400., 400.]])
+    layout = np.array([[100.0, 100.0], [100.0, 110.0], [300.0, 300.0], [400.0, 400.0]])
     valid, errors = validate_layout(layout, N, SPACING, DOMAIN)
     assert not valid
 
 
 def test_canonical_order():
-    layout = np.array([[200., 100.], [100., 200.], [100., 100.], [200., 200.]])
+    layout = np.array([[200.0, 100.0], [100.0, 200.0], [100.0, 100.0], [200.0, 200.0]])
     ordered = canonical_order(layout)
     assert ordered[0, 0] <= ordered[1, 0]

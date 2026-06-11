@@ -1,12 +1,13 @@
 """Config loader and validator for problem.yaml and paths.yaml."""
 from __future__ import annotations
-from pathlib import Path
+
 import yaml
+from pathlib import Path
 
 
 def load_problem(path: str | Path = "config/problem.yaml") -> dict:
     """Load and return the problem configuration dict."""
-    with open(path, "r") as f:
+    with open(path) as f:
         cfg = yaml.safe_load(f)
     _validate_problem(cfg)
     return cfg
@@ -14,7 +15,7 @@ def load_problem(path: str | Path = "config/problem.yaml") -> dict:
 
 def load_paths(path: str | Path = "config/paths.yaml") -> dict:
     """Load and return the paths configuration dict."""
-    with open(path, "r") as f:
+    with open(path) as f:
         cfg = yaml.safe_load(f)
     return cfg
 

@@ -6,9 +6,12 @@ It enforces geometric validity before inference and uses frozen normalisation
 bounds from the exported bundle.
 """
 from __future__ import annotations
+
 from pathlib import Path
+
 import numpy as np
-from src.layouts.geometry import validate_layout, canonical_order
+
+from src.layouts.geometry import canonical_order, validate_layout
 from src.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -31,8 +34,13 @@ class SurrogateFitness:
         """Load the bundle once — call outside the GA loop."""
         raise NotImplementedError("Implement bundle loading in src/export/bundle.py")
 
-    def evaluate(self, layout: np.ndarray, sea_state: list[float],
-                 alpha: float, beta: float) -> dict:
+    def evaluate(
+        self,
+        layout: np.ndarray,
+        sea_state: list[float],
+        alpha: float,
+        beta: float,
+    ) -> dict:
         """
         Evaluate a single layout under one sea state.
 
@@ -50,8 +58,14 @@ class SurrogateFitness:
         )
         if not is_valid:
             log.debug("Invalid layout rejected: %s", violations)
-            return {"fitness": SENTINEL_FITNESS, "valid": False,
-                    "warnings": violations, "p_total": None, "hra": None, "mode": None}
+            return {
+                "fitness": SENTINEL_FITNESS,
+                "valid": False,
+                "warnings": violations,
+                "p_total": None,
+                "hra": None,
+                "mode": None,
+            }
 
         layout_ordered = canonical_order(layout)
         features = self._build_features(layout_ordered, sea_state)
