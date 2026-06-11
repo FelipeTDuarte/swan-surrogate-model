@@ -1,5 +1,6 @@
 """Unit tests for geometry validation."""
 import numpy as np
+
 from src.layouts.geometry import canonical_order, validate_layout
 
 DOMAIN = {"x": [0.0, 5000.0], "y": [0.0, 5000.0]}

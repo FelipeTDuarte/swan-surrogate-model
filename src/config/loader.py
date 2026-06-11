@@ -1,8 +1,9 @@
 """Config loader and validator for problem.yaml and paths.yaml."""
 from __future__ import annotations
 
-import yaml
 from pathlib import Path
+
+import yaml
 
 
 def load_problem(path: str | Path = "config/problem.yaml") -> dict:
