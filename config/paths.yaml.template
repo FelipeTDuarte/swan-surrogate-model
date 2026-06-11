@@ -1,0 +1,16 @@
+# paths.yaml — Filesystem layout for the surrogate pipeline
+# Copy this file to paths.yaml and adjust root_dir for your machine.
+
+root_dir: "."                         # absolute or relative to repo root
+
+runs_dir:       "${root_dir}/runs"
+processed_dir:  "${root_dir}/data/processed"
+archive_dir:    "${root_dir}/data/archive"
+raw_dir:        "${root_dir}/data/raw"
+models_dir:     "${root_dir}/models"
+reports_dir:    "${root_dir}/reports"
+logs_dir:       "${root_dir}/reports/logs"
+
+# SNL-SWAN executable
+swan_executable: "swanrun"            # or full path to swanrun / swan.exe
+swan_input_template: "src/swan_inputs/templates/INPUT.swn.j2"

@@ -1,0 +1,54 @@
+# problem.yaml — Contract for a specific surrogate training run
+# Copy this file to problem.yaml and fill in your values.
+
+problem_id: "swan_surrogate_n28_v1"   # unique identifier — change with every contract change
+n_wecs: 28                             # fixed number of WECs for this surrogate
+
+# --- Sea states ---
+sea_states:
+  source: "data/raw/scatter_diagram/scatter_diagram.csv"
+  variables: ["Hs", "Tp", "Dir"]
+  units:
+    Hs: "m"
+    Tp: "s"
+    Dir: "deg_nautical"
+
+# --- Layout sampling ---
+layouts:
+  domain_bounds:
+    x: [0.0, 5000.0]    # metres
+    y: [0.0, 5000.0]    # metres
+  min_spacing: 50.0      # minimum inter-WEC spacing (m)
+  canonical_order: "x_then_y"
+  families:
+    random_sparse: 2500
+    grid_like: 2100
+    row_aligned: 1800
+    diagonal: 1600
+    compact: 2000
+    dispersed: 2000
+  total_target: 15000
+
+# --- HRA ---
+hra:
+  mode: "B"             # "B" (scalar HRA per area) | "C" (full Hs field)
+  aggregation: "mean"
+  areas:
+    area_1:
+      x: [500.0, 1500.0]
+      y: [500.0, 1500.0]
+    area_2:
+      x: [2000.0, 3000.0]
+      y: [2000.0, 3000.0]
+
+# --- Fitness normalisation ---
+fitness:
+  normalization: "minmax_0.01_1"
+  p_total_bounds: [0.0, 1000.0]     # [W] — update after first batch
+  hra_bounds: [0.0, 4.0]            # update after first batch
+
+# --- Training ---
+training:
+  split: [0.70, 0.15, 0.15]
+  random_seed: 42
+  split_policy: "train_side_deterministic"

@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+pip-wheel-metadata/
+*.whl
+
+# Environments
+.env
+.venv
+env/
+venv/
+.conda/
+*.conda
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data — large files not tracked by git
+data/raw/**/*.nc
+data/raw/**/*.grib
+data/raw/**/*.grib2
+data/raw/**/*.mat
+data/processed/**/*.csv
+data/processed/**/*.parquet
+data/archive/
+runs/*/
+
+# Keep gitkeep markers
+!**/.gitkeep
+
+# Models — large binary artefacts
+models/**/*.pkl
+models/**/*.pt
+models/**/*.onnx
+models/**/*.bundle
+models/exported/
+models/splits/
+
+# Reports — generated outputs
+reports/logs/*.log
+reports/train_curves/
+reports/validation_plots/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Config — local overrides (keep templates)
+config/problem.yaml
+config/paths.yaml
+
+# Misc
+*.bak
+*.tmp
