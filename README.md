@@ -40,29 +40,33 @@ consistency and generalisability.
 swan-surrogate-model/
 ├── config/                    # problem.yaml, paths.yaml
 ├── data/
-│   ├── raw/                   # scatter diagrams, bathymetry, BCs
-│   ├── processed/             # candidates, parsed outputs, frozen datasets
-│   └── archive/               # .mat fields, case archives
-├── runs/                      # per-case SNL-SWAN run directories
+│   ├── raw/
+        ├── domain_geometry     # bathymetry, grid
+        └── scatter_diagrams    # scatter diagrams: tides, waves, winds
+│   ├── processed/              # candidates, parsed outputs, frozen datasets
+        ├── boundary_conditions # power.txt, physical/numerical parameters
+        └── initial_conditions  # processed files: water levels, wave input, wind input         
+│   └── archive/                # .mat fields, case archives
+├── runs/                       # per-case SNL-SWAN run directories
 ├── models/
-│   ├── exported/              # versioned inference bundles
-│   └── splits/                # frozen train/val/test splits by case_id
+│   ├── exported/               # versioned inference bundles
+│   └── splits/                 # frozen train/val/test splits by case_id
 ├── reports/
-│   ├── logs/                  # per-stage operational logs
-│   ├── train_curves/          # training metric plots
-│   └── validation_plots/      # validation metric plots
+│   ├── logs/                   # per-stage operational logs
+│   ├── train_curves/           # training metric plots
+│   └── validation_plots/       # validation metric plots
 ├── src/
-│   ├── config/                # config loaders and validators
-│   ├── layouts/               # layout generation, geometry validation
-│   ├── swan_inputs/           # SNL-SWAN input file rendering
-│   ├── runner/                # batch execution, resume, status tracking
-│   ├── parser/                # output parsing, P_total, Hs field, HRA
-│   ├── dataset/               # dataset assembly, versioning, registry
-│   ├── training/              # model training, scalers, bundles
-│   ├── validation/            # holdout, ranking, dynamic recheck
-│   ├── export/                # bundle packaging and manifest
-│   ├── ga_integration/        # surrogate fitness interface for GA
-│   └── utils/                 # logging, io helpers, physical checks
+│   ├── config/                 # config loaders and validators
+│   ├── layouts/                # layout generation, geometry validation
+│   ├── swan_inputs/            # SNL-SWAN input file rendering
+│   ├── runner/                 # batch execution, resume, status tracking
+│   ├── parser/                 # output parsing, P_total, Hs field, HRA
+│   ├── dataset/                # dataset assembly, versioning, registry
+│   ├── training/               # model training, scalers, bundles
+│   ├── validation/             # holdout, ranking, dynamic recheck
+│   ├── export/                 # bundle packaging and manifest
+│   ├── ga_integration/         # surrogate fitness interface for GA
+│   └── utils/                  # logging, io helpers, physical checks
 ├── tests/
 │   ├── unit/
 │   └── integration/

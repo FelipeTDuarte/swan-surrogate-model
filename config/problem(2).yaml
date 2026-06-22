@@ -1,0 +1,63 @@
+# problem.yaml — Contract for a specific surrogate training run
+# Copy this file to problem.yaml and fill in your values.
+
+problem_id: "PROJECT NAME"   # unique identifier — change with every contract change
+n_wecs:                      # fixed number of WECs for this surrogate
+wec_lenght: 9.0              # lenght of the wec to from the power.txt
+
+# --- Sea states ---
+sea_states:
+  source: "PATH/TO/WAVE/DATA/FILE"
+  variables: ["Hs", "Tp", "Dir"]
+  units:
+    Hs: "m"
+    Tp: "s"
+    Dir: "deg_nautical"
+  envelope:
+    Hs: [0.25, 10.4]
+    Tp: [2.8, 23.61]
+    Dir: [0.0, 400.0]
+  sampling:
+    method: "importance"     # importance sampling ponderado pela scatter diagram
+    seed: 42
+
+# --- Layout sampling ---
+layouts:
+  domain_bounds:
+    x: [null, null]    # metres
+    y: [null, null]    # metres
+  min_spacing:           # minimum inter-WEC spacing (m)
+  canonical_order: "x_then_y"
+  families:
+    random_sparse: 2500
+    grid_like: 2100
+    row_aligned: 1800
+    diagonal: 1600
+    compact: 2000
+    dispersed: 2000
+  total_target: 15000
+
+# --- HRA ---
+hra:
+  mode: "B"             # "B" (scalar HRA per area) | "C" (full Hs field)
+  aggregation: "mean"
+  areas:
+    area_1:
+      x: [null, null]
+      y: [null, null]
+  # only if there are more Areas of Interest  
+  #  area_2:
+  #    x: [null, null]
+  #    y: [null, null]
+
+# --- Fitness normalization ---
+fitness:
+  normalization: "minmax_0.01_1"
+  p_total_bounds: [null, null]     # [W] — update after first batch
+  hra_bounds: [null, null]            # update after first batch
+
+# --- Training ---
+training:
+  split: [0.70, 0.15, 0.15]
+  random_seed: 42
+  split_policy: "train_side_deterministic"

@@ -1,0 +1,64 @@
+# problem.yaml — Contract for a specific surrogate training run
+# Copy this file to problem.yaml and fill in your values.
+
+problem_id: "swan_surrogate_n28_v1"   # unique identifier — change with every contract change
+description: "Surrogate SNL-SWAN for 28 WECs C4 of Corpower in Viana do Castelo - 10 MW instaled capacity"
+n_wecs: 28                             # fixed number of WECs for this surrogate
+
+# --- Sea states ---
+sea_states:
+  source: "data/raw/scatter_diagram/scatter_diagram.csv"
+  variables: ["Hs", "Tp", "Dir"]
+  units:
+    Hs: "m"
+    Tp: "s"
+    Dir: "deg_nautical"
+  envelope:
+    Hs:  [0.0, 5.0]          # simulações actuais até 5m
+    Tp:  [null, null]        # PLACEHOLDER — preencher após análise da scatter diagram
+    Dir: [null, null]        # PLACEHOLDER — preencher após análise da scatter diagram
+  sampling:
+    method: "importance"     # importance sampling ponderado pela scatter diagram
+    seed: 42
+
+#--- Layout sampling ---
+layouts:
+  grid_file: "data/raw/domain_geometry/grid_viana"
+  bottom_file: "data/raw/domain_geometry/batmetry_viana"
+  domain_bounds:
+    x: [493757.155, 496357.555]    # metres
+    y: [4613673.918, 4616273.118]    # metres
+  min_spacing: 150.0      # minimum inter-WEC spacing (m)
+  canonical_order: "x_then_y"
+  families:
+    random_sparse: 2500
+    grid_like: 2100
+    row_aligned: 1800
+    diagonal: 1600
+    compact: 2000
+    dispersed: 2000
+  total_target: 15000
+
+# --- HRA ---
+hra:
+  mode: "B"             # "B" (scalar HRA per area) | "C" (full Hs field)
+  aggregation: "mean"
+  areas:
+    area_1:
+      x: [494418.251, 496018.251]
+      y: [4614771.327, 4615171.327]
+    # area_2:
+    #   x: [2000.0, 3000.0]
+    #   y: [2000.0, 3000.0]
+
+# --- Fitness normalisation ---
+fitness:
+  normalization: "minmax_0.01_1"
+  p_total_bounds: [0.0, 1000.0]     # [W] — update after first batch
+  hra_bounds: [0.0, 4.0]            # update after first batch
+
+# --- Training ---
+training:
+  split: [0.70, 0.15, 0.15]
+  random_seed: 42
+  split_policy: "train_side_deterministic"

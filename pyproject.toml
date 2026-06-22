@@ -57,6 +57,14 @@ dev = [
 # Pipeline stages are invoked directly: python scripts/01_generate_layouts.py
 # Filenames starting with digits are not valid Python module entry points.
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["swan_surrogate*"]
+namespaces = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

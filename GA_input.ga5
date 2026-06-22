@@ -1,0 +1,49 @@
+############################################# General Inputs #################################################
+central_point = (4614971.327, 495214.693)
+start_angle = 213
+end_angle = 338
+num_arrays = 25
+num_wecs = 50
+wec_length = 22
+min_dist = 2.5
+
+files_to_copy = ["BOTNOW", "TMP_grid2swan01", "Power.txt","swanrun","WFAs.loc" ]
+
+sim_type = omp
+sim_cores = 8
+
+swanout_mat = int_area.mat
+hs_matrix = Hsig_20220910_000000
+
+############################################# Sea States and background ##############################
+gen_background = off
+
+sea_states_file = sea_states.csv
+sea_states_files_to_copy = ["sea_states.csv" ]
+
+'''for now sea states generation only run in series but can choose the type (omp/mpi) and cores inside SWAN'''
+
+############################################# Initial Population ######################################
+gen_initial_pop = off
+
+
+initial_pop_size = 500
+sea_states_folder = sea_states
+
+'''for now sea states generation only run in series but can choose the type (omp/mpi) and cores inside SWAN'''
+
+############################################# GA Inputs #################################################
+
+max_generations = 500
+tolerance = 0.0001
+max_consecutive_stable_iterations = 20
+elite_size = 0.12
+crossover_rate = 0.7
+mutation_rate = 0.01
+
+sea_states_folder = sea_states
+sea_states_file = sea_states.csv
+
+
+parallel = on
+parallel_files_to_copy = ["run_swan_parallel.sh","output_evaluation.py","pre_to_avg.py" ]

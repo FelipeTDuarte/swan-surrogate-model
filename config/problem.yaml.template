@@ -1,24 +1,32 @@
 # problem.yaml — Contract for a specific surrogate training run
 # Copy this file to problem.yaml and fill in your values.
 
-problem_id: "swan_surrogate_n28_v1"   # unique identifier — change with every contract change
-n_wecs: 28                             # fixed number of WECs for this surrogate
+problem_id: "PROJECT NAME"   # unique identifier — change with every contract change
+n_wecs: null                 # fixed number of WECs for this surrogate
+wec_lenght: null             # lenght of the wec to from the power.txt
 
 # --- Sea states ---
 sea_states:
-  source: "data/raw/scatter_diagram/scatter_diagram.csv"
+  source: "PATH/TO/WAVE/DATA/FILE"
   variables: ["Hs", "Tp", "Dir"]
   units:
     Hs: "m"
     Tp: "s"
     Dir: "deg_nautical"
+  envelope:
+    Hs: [null, null]
+    Tp: [null, null]
+    Dir: [null, null]
+  sampling:
+    method: "importance"     # importance sampling ponderado pela scatter diagram
+    seed: 42
 
 # --- Layout sampling ---
 layouts:
   domain_bounds:
-    x: [0.0, 5000.0]    # metres
-    y: [0.0, 5000.0]    # metres
-  min_spacing: 50.0      # minimum inter-WEC spacing (m)
+    x: [null, null]    # metres
+    y: [null, null]    # metres
+  min_spacing: null      # minimum inter-WEC spacing (m)
   canonical_order: "x_then_y"
   families:
     random_sparse: 2500
@@ -35,17 +43,18 @@ hra:
   aggregation: "mean"
   areas:
     area_1:
-      x: [500.0, 1500.0]
-      y: [500.0, 1500.0]
-    area_2:
-      x: [2000.0, 3000.0]
-      y: [2000.0, 3000.0]
+      x: [null, null]
+      y: [null, null]
+  # only if there are more Areas of Interest  
+  #  area_2:
+  #    x: [null, null]
+  #    y: [null, null]
 
-# --- Fitness normalisation ---
+# --- Fitness normalization ---
 fitness:
   normalization: "minmax_0.01_1"
-  p_total_bounds: [0.0, 1000.0]     # [W] — update after first batch
-  hra_bounds: [0.0, 4.0]            # update after first batch
+  p_total_bounds: [null, null]     # [W] — update after first batch
+  hra_bounds: [null, null]            # update after first batch
 
 # --- Training ---
 training:
