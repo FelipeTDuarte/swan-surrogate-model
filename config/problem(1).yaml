@@ -2,7 +2,44 @@
 # Copy this file to problem.yaml and fill in your values.
 
 problem_id: "swan_surrogate_n28_v1"   # unique identifier — change with every contract change
-n_wecs: 28                             # fixed number of WECs for this surrogate
+description: "Surrogate SNL-SWAN for array for 28 C4 corpower — 10 MW instaled capacity"
+
+# ─── WECs ─────────────────────────────────────────────────────────────────────
+n_wecs: 28                  # fixed number of WECs for this surrogate
+wec_type: "Point Absorber"
+wec_length_m: 9.0
+
+# ─── Grid ─────────────────────────────────────────────────────────────────────
+# grid_mode: "swan"    → lê grid_file existente (formato SWAN x-/y-coordinates)
+#            "delft3d" → lê delft3d_grd_file e converte para SWAN
+#            "build"   → constrói CGRID regular a partir de build_params abaixo
+
+# ─── Layouts & domain ─────────────────────────────────────────────────────────
+layouts:
+  grid_mode: "swan"              # swan | delft3d | build
+
+  # Usado apenas se grid_mode = "build"
+  build_params:
+    xpc:   0.0                   # X origin
+    ypc:   0.0                   # Y Origin 
+    alpc:  0.0                   # rotation angle (degrees)
+    xlenc: 10000.0               # X Lenght (m)
+    ylenc:  8000.0               # Y Lenght (m)
+    mxc:   201                   # Number of X Nodes
+    myc:   161                   # Number of Y Nodes
+
+  min_spacing_m: 39.0            # 1.5 × D = 1.5 × 26 m
+  canonical_order: "x_then_y"
+  families:
+    random_sparse:  2500
+    grid_like:      2100
+    row_aligned:    1800
+    diagonal:       1600
+    compact:        2000
+    dispersed:      2000
+  total_target: 12000
+
+
 
 # --- Sea states ---
 sea_states:
