@@ -2,12 +2,48 @@
 # Copy this file to problem.yaml and fill in your values.
 
 problem_id: "PROJECT NAME"   # unique identifier — change with every contract change
-n_wecs: null                 # fixed number of WECs for this surrogate
-wec_lenght: null             # lenght of the wec to from the power.txt
+description: " "
+
+# ─── WECs ─────────────────────────────────────────────────────────────────────
+n_wecs: null                  # fixed number of WECs for this surrogate
+wec_type: " "
+wec_length_m: null            # length of the wec to from the power.txt
+
+# ─── Grid ─────────────────────────────────────────────────────────────────────
+# grid_mode: "swan"    → reads swan grid file
+#            "delft3d" → reads delft3d grd file and convert to SWAN
+#            "build"   → builds a new regular CGRID regular from build_params
+
+# ─── Layouts & domain ─────────────────────────────────────────────────────────
+layouts:
+  grid_mode: "swan"              # swan | delft3d | build
+
+  # used only if grid_mode = "build"
+  build_params:
+    xpc:   0.0                   # X origin
+    ypc:   0.0                   # Y Origin 
+    alpc:  0.0                   # rotation angle (degrees)
+    xlenc: 10000.0               # X Lenght (m)
+    ylenc:  8000.0               # Y Lenght (m)
+    mxc:   201                   # Number of X Nodes
+    myc:   161                   # Number of Y Nodes
+
+  min_spacing_m: 39.0            # 1.5 × D = 1.5 × 26 m
+  canonical_order: "x_then_y"
+  families:
+    random_sparse:  2500
+    grid_like:      2100
+    row_aligned:    1800
+    diagonal:       1600
+    compact:        2000
+    dispersed:      2000
+  total_target: 12000
+
+
 
 # --- Sea states ---
 sea_states:
-  source: "PATH/TO/WAVE/DATA/FILE"
+  source: "data/raw/scatter_diagram/scatter_diagram.csv"
   variables: ["Hs", "Tp", "Dir"]
   units:
     Hs: "m"
@@ -24,9 +60,9 @@ sea_states:
 # --- Layout sampling ---
 layouts:
   domain_bounds:
-    x: [null, null]    # metres
-    y: [null, null]    # metres
-  min_spacing: null      # minimum inter-WEC spacing (m)
+    x: [null, null]    # meters
+    y: [null, null]    # meters
+  min_spacing: 50.0      # minimum inter-WEC spacing (m)
   canonical_order: "x_then_y"
   families:
     random_sparse: 2500
@@ -61,3 +97,4 @@ training:
   split: [0.70, 0.15, 0.15]
   random_seed: 42
   split_policy: "train_side_deterministic"
+
