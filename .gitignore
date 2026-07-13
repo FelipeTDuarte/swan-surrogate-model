@@ -31,6 +31,10 @@ data/raw/**/*.grib2
 data/raw/**/*.mat
 data/processed/**/*.csv
 data/processed/**/*.parquet
+data/processed/**/*.h5
+data/processed/**/*bathymetry*
+data/processed/**/*bottom*
+data/processed/**/*grid*
 data/archive/
 runs/*/
 

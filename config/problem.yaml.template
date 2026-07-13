@@ -6,13 +6,16 @@ description: " "
 
 # ─── WECs ─────────────────────────────────────────────────────────────────────
 n_wecs: null                  # fixed number of WECs for this surrogate
-wec_type: " "
+wec_type: null
 wec_length_m: null            # length of the wec to from the power.txt
 
-# ─── Grid ─────────────────────────────────────────────────────────────────────
-# grid_mode: "swan"    → reads swan grid file
-#            "delft3d" → reads delft3d grd file and convert to SWAN
-#            "build"   → builds a new regular CGRID regular from build_params
+# ─── Grid & Bottom─────────────────────────────────────────────────────────────────────
+grid_mode: "swan"    → reads swan grid file
+#          "delft3d" → reads delft3d grd file and convert to SWAN
+#          "build"   → builds a new regular CGRID regular from build_params
+grid_file: "data/processed/boundary_conditions/grid_file"
+bottom_file: "data/processed/boundary_conditions/batmetry_file"
+
 
 # ─── Layouts & domain ─────────────────────────────────────────────────────────
 layouts:
@@ -28,7 +31,7 @@ layouts:
     mxc:   201                   # Number of X Nodes
     myc:   161                   # Number of Y Nodes
 
-  min_spacing_m: 39.0            # 1.5 × D = 1.5 × 26 m
+  min_spacing_m: 39.0            # e.g., 1.5 × D (wec_length) = 1.5 × 26 m = 39 m
   canonical_order: "x_then_y"
   families:
     random_sparse:  2500
@@ -38,8 +41,6 @@ layouts:
     compact:        2000
     dispersed:      2000
   total_target: 12000
-
-
 
 # --- Sea states ---
 sea_states:
@@ -62,7 +63,6 @@ layouts:
   domain_bounds:
     x: [null, null]    # meters
     y: [null, null]    # meters
-  min_spacing: 50.0      # minimum inter-WEC spacing (m)
   canonical_order: "x_then_y"
   families:
     random_sparse: 2500
@@ -73,7 +73,7 @@ layouts:
     dispersed: 2000
   total_target: 15000
 
-# --- HRA ---
+# --- Wave Heigh Reduction in the Area of Interest (HRA) ---
 hra:
   mode: "B"             # "B" (scalar HRA per area) | "C" (full Hs field)
   aggregation: "mean"
