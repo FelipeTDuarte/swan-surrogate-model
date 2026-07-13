@@ -35,6 +35,7 @@ data/processed/**/*.h5
 data/processed/**/*bathymetry*
 data/processed/**/*bottom*
 data/processed/**/*grid*
+data/processed/**/*Power*
 data/archive/
 runs/*/
 
