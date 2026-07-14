@@ -10,7 +10,16 @@ raw_dir:        "${root_dir}/data/raw"
 models_dir:     "${root_dir}/models"
 reports_dir:    "${root_dir}/reports"
 logs_dir:       "${root_dir}/reports/logs"
+templates_dir:  "${root_dir}/docs/templates
+
 
 # SNL-SWAN executable
 swan_executable: "swanrun"            # or full path to swanrun / swan.exe
 swan_input_template: "src/swan_inputs/templates/INPUT.swn.j2"
+
+# Grid & Bottom Filesystem
+grid_file:      "./data/processed_dir/boundary_conditions/*grid*"
+bottom_file:    "./data/processed_dir/boundary_conditions/*bottom*"
+
+# Wave data
+scatter_csv:    "./data/raw/scatter_diagram/wave_data.csv"

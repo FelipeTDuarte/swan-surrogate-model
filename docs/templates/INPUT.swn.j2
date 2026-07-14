@@ -1,0 +1,164 @@
+$ ============================================================================
+$ INPUT.swn.j2
+$
+$ SNL-SWAN input deck — generated automatically by 03_build_swan_inputs.py
+$ problem_id : {{ problem_id }}
+$ layout_id  : {{ layout_id }}
+$ family     : {{ family }}
+$ sea_state  : {{ sea_state_id }}   Hs={{ Hs }} m   Tp={{ Tp }} s   Dir={{ Dir }} deg
+$
+$ Do not edit generated files by hand — edit this template and re-run the
+$ build script instead.
+$ ============================================================================
+
+
+$ ============================================================================
+$ 1. PROJECT
+$ ============================================================================
+PROJECT '{{ problem_id }}' '{{ run_id }}'
+
+
+$ ============================================================================
+$ 2. SET
+$ ============================================================================
+SET LEVEL {{ water_level | default(0.0) }}
+SET NAUTICAL
+
+$ SNL-SWAN obstacle/WEC representation mode
+$ 0 = baseline SWAN transmission coefficient
+$ 1 = Power Matrix, average transmission
+$ 2 = Relative Capture Width (RCW), average transmission
+$ 3 = Power Matrix, per-frequency transmission
+$ 4 = RCW, per-frequency transmission
+SET OBCASE {{ obcase | default(0) }}
+
+
+$ ============================================================================
+$ 3. MODE
+$ ============================================================================
+MODE {{ mode | default("STATIONARY") }} TWODIMENSIONAL
+
+
+$ ============================================================================
+$ 4. COORDINATES
+$ ============================================================================
+COORDINATES {{ coordinate_system | default("CARTESIAN") }}
+
+
+$ ============================================================================
+$ 5. CGRID — computational grid
+$ ============================================================================
+{% if grid_type == "unstructured" %}
+CGRID UNSTRUCTURED CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+READGRID UNSTRUCTURED TRIANGLE '{{ grid_file }}'
+{% elif grid_type == "curvilinear" %}
+CGRID CURVILINEAR {{ mxc }} {{ myc }} EXC {{ xexc }} {{ yexc }} &
+    CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+READGRID COORDINATES 1 '{{ grid_file }}' 4 0 0 FREE
+{% else %}
+CGRID REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ xlenc }} {{ ylenc }} {{ mxc }} {{ myc }} &
+    CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+{% endif %}
+
+
+$ ============================================================================
+$ 6. INPGRID / READINP — bathymetry (required)
+$ ============================================================================
+{% if grid_type == "unstructured" %}
+INPGRID BOTTOM UNSTRUCTURED EXCEPTION {{ exc_value | default(-999.0) }}
+READINP BOTTOM 1.0 '{{ bottom_file }}' 3 FREE
+{% elif grid_type == "curvilinear" %}
+INPGRID BOTTOM CURVILINEAR 0 0 {{ mxc }} {{ myc }} EXCEPTION {{ exc_value | default(-999.0) }}
+READINP BOTTOM 1.0 '{{ bottom_file }}' 4 0 FREE
+{% else %}
+INPGRID BOTTOM REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
+    EXCEPTION {{ exc_value | default(-999.0) }}
+READINP BOTTOM 1.0 '{{ bottom_file }}' 3 FREE
+{% endif %}
+
+
+$ ============================================================================
+$ 7. OPTIONAL INPUT FIELDS
+$ ============================================================================
+{% if wind_file %}
+INPGRID WIND REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
+READINP WIND 1.0 '{{ wind_file }}' 3 0 FREE
+{% endif %}
+{% if current_file %}
+INPGRID CURRENT REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
+READINP CURRENT 1.0 '{{ current_file }}' 3 0 FREE
+{% endif %}
+{% if wlev_file %}
+INPGRID WLEV REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
+READINP WLEV 1.0 '{{ wlev_file }}' 3 0 FREE
+{% endif %}
+
+
+$ ============================================================================
+$ 8. BOUNDARY CONDITIONS
+$ ============================================================================
+{% if boundary_mode == "segment_file" %}
+BOUNDSPEC SEGMENT XY {{ bnd_x1 }} {{ bnd_y1 }} {{ bnd_x2 }} {{ bnd_y2 }} &
+    VARIABLE FILE {{ bnd_len | default(1) }} '{{ boundary_file }}'
+{% elif boundary_mode == "segment_par" %}
+BOUNDSPEC SEGMENT XY {{ bnd_x1 }} {{ bnd_y1 }} {{ bnd_x2 }} {{ bnd_y2 }} &
+    CONSTANT PAR {{ Hs }} {{ Tp }} {{ Dir }} {{ dspr | default(30.0) }}
+{% elif boundary_mode == "nest" %}
+BOUNDNEST1 NEST '{{ nest_file }}' CLOSED
+{% else %}
+BOUND SHAPESPEC JONSWAP {{ jonswap_gamma | default(3.3) }} PEAK DSPR DEGREES
+BOUNDPAR1 SIDE {{ boundary_side | default("W") }} CONSTANT PAR {{ Hs }} {{ Tp }} {{ Dir }} {{ dspr | default(30.0) }}
+{% endif %}
+
+
+$ ============================================================================
+$ 9. PHYSICS
+$ ============================================================================
+GEN3 {{ gen3_formulation | default("KOMEN") }}
+WCAP {{ wcap_formulation | default("KOMEN") }}
+QUADRUPL
+BREAKING CONSTANT {{ breaking_alpha | default(1.0) }} {{ breaking_gamma | default(0.73) }}
+FRICTION JONSWAP {{ friction_cfjon | default(0.067) }}
+TRIAD
+{% if diffraction %}
+DIFFRACTION {{ diffraction_smpar | default(0.0) }} {{ diffraction_smnum | default(1) }} {{ diffraction_cgmod | default(1) }}
+{% endif %}
+
+
+$ ============================================================================
+$ 10. WEC OBSTACLES
+$ ============================================================================
+$ One OBSTACLE line per WEC, generated from the layout table.
+$WEC_ARRAY_START
+{{ wec_block }}
+$WEC_ARRAY_END
+
+
+$ ============================================================================
+$ 11. NUMERICS
+$ ============================================================================
+PROP BSBT
+NUMERIC ACCUR {{ num_drel | default(0.02) }} {{ num_dhoval | default(0.02) }} {{ num_dtoval | default(0.02) }} {{ num_npnts | default(98) }}
+
+
+$ ============================================================================
+$ 12. OUTPUT
+$ ============================================================================
+BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Hs.mat' LAY-OUT 3 HSIGN
+BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Tm01.mat' LAY-OUT 3 RTM01
+BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Dir.mat' LAY-OUT 3 DIR
+
+
+$ ============================================================================
+$ 13. COMPUTE
+$ ============================================================================
+{% if mode == "NONSTATIONARY" %}
+COMPUTE NONSTATIONARY {{ tbegc }} {{ deltc }} {{ deltc_unit | default("MIN") }} {{ tendc }}
+{% else %}
+COMPUTE
+{% endif %}
+
+STOP

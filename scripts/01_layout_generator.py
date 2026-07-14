@@ -448,11 +448,11 @@ def build_segments_from_centers(
 
         if not validate_segment(segment, accepted, deploy_area, spec.geometry, spec.min_dist):
             repaired = False
-            for _ in range(40):
-                local_angle = angle + rng.uniform(-20.0, 20.0)
+            for _ in range(60):
+                local_angle = angle + rng.uniform(-45.0, 45.0)
                 local_center = Point(
-                    center.x + rng.uniform(-0.35, 0.35) * spec.geometry.transverse_length,
-                    center.y + rng.uniform(-0.35, 0.35) * spec.geometry.transverse_length,
+                    center.x + rng.uniform(-spec.min_dist, spec.min_dist),
+                    center.y + rng.uniform(-spec.min_dist, spec.min_dist),
                 )
                 candidate = segment_from_center(local_center, spec.geometry.length, local_angle)
                 if validate_segment(candidate, accepted, deploy_area, spec.geometry, spec.min_dist):
@@ -712,7 +712,7 @@ def build_dataset_spec(problem_cfg: dict[str, Any], seed_override: int | None = 
         seed = problem_cfg.get("training", {}).get("random_seed")
 
     geometry = WECGeometry(
-        length=float(layouts_cfg["wec_length_m"]),
+        length=float(problem_cfg["wec_length_m"]),
         transverse_length=float(layouts_cfg.get("wec_transverse_length_m", layouts_cfg.get("transverse_length_m", 1.0))),
     )
 

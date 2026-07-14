@@ -149,7 +149,8 @@ def importance_sample(df: pd.DataFrame,
         "weight":        occurrence_weight,
         "source":        ["importance"] * n_main + ["extreme"] * n_extreme,
     })
-    result = result.clip(lower={"Hs": 0.01, "Tp": 1.0})
+    result["Hs"] = result["Hs"].clip(lower=0.01)
+    result["Tp"] = result["Tp"].clip(lower=1.0)
     return result
 
 
@@ -182,6 +183,10 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df_raw = load_wave_data(csv_path)
+
+    n_before = len(df_raw)
+    df_raw = df_raw[df_raw["Dir"] > -999].reset_index(drop=True)
+    log.info("Removed %d records with sentinel Dir values (-9999.9)", n_before - len(df_raw))
 
     # Default n_samples: one sea state per layout (total_target in problem.yaml)
     n_ss = args.n_samples or cfg["layouts"]["total_target"]

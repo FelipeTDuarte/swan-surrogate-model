@@ -13,9 +13,6 @@ wec_length_m: null            # length of the wec to from the power.txt
 grid_mode: "swan"    → reads swan grid file
 #          "delft3d" → reads delft3d grd file and convert to SWAN
 #          "build"   → builds a new regular CGRID regular from build_params
-grid_file: "data/processed/boundary_conditions/grid_file"
-bottom_file: "data/processed/boundary_conditions/batmetry_file"
-
 
 # ─── Layouts & domain ─────────────────────────────────────────────────────────
 layouts:

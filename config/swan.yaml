@@ -1,0 +1,73 @@
+# ==============================================================================
+# swan.yaml
+#
+# Project-specific SWAN / SNL-SWAN run configuration.
+#
+# This file is separate from problem.yaml on purpose:
+# - problem.yaml describes the surrogate-modeling problem (n_wecs, layout
+#   families, spacing rules, training seed, etc.)
+# - swan.yaml describes how the numerical wave model itself should be run
+#   (grid, forcing fields, boundary, physics, numerics, output).
+#
+# Any field omitted here falls back to swan_defaults.yaml. Only override what
+# actually differs from the defaults for this project.
+# ==============================================================================
+
+mode: STATIONARY               # STATIONARY | NONSTATIONARY
+coordinate_system: CARTESIAN   # CARTESIAN | SPHERICAL
+water_level: 0.0
+
+grid:
+  type: regular                # regular | curvilinear | unstructured
+  xpc: 0.0
+  ypc: 0.0
+  xlenc: 5000.0
+  ylenc: 3000.0
+  mxc: 250
+  myc: 150
+  # dxinp / dyinp default to xlenc/mxc and ylenc/myc if omitted
+  mdc: 36
+  flow: 0.04
+  fhigh: 1.0
+  msc: 31
+
+# input_fields:
+#   wind_file: wind.txt
+#   current_file: current.txt
+#   tbeginp: "20260101.000000"
+#   deltinp: 1
+#   delt_unit: HR
+#   tendinp: "20260102.000000"
+
+boundary:
+  mode: side_par                # side_par | segment_par | segment_file | nest
+  side: W
+  jonswap_gamma: 3.3
+  dspr: 30.0
+
+physics:
+  gen3: WESTHUYSEN
+  wcap: KOMEN
+  breaking_alpha: 1.0
+  breaking_gamma: 0.73
+  friction_cfjon: 0.067
+  diffraction: false
+
+numerics:
+  drel: 0.02
+  dhoval: 0.02
+  dtoval: 0.02
+  npnts: 98
+
+# nonstationary:               # only needed when mode: NONSTATIONARY
+#   tbegc: "20260101.000000"
+#   deltc: 10
+#   deltc_unit: MIN
+#   tendc: "20260102.000000"
+
+layouts:
+  transmission_coef: 0.0        # OBSTACLE TRANSM coefficient
+  obcase: 0                     # SNL-SWAN SET OBCASE (0-4)
+  wec_length_m: 20.0             # used only when layouts export centers only
+  wec_angle_deg: 315.0             # WEC normal angle in degrees
+  wec_angle_convention: nautical   # nautical | cartesian

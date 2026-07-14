@@ -1,0 +1,263 @@
+$ ============================================================================
+$ Generic SWAN / SNL-SWAN command template.
+$
+$ Purpose:
+$   - Keep the full command skeleton available for manual editing.
+$   - Keep every command commented out by default (safe starting point).
+$   - Expose {PLACEHOLDER} tokens so a Python pipeline can auto-fill values
+$     coming from problem.yaml / paths.yaml and write a final INPUT.swn.
+$   - Reserve one clearly marked block for WEC obstacles generated from a
+$     layout file (segments or centers converted to obstacle lines).
+$
+$ Usage:
+$   - Manual use: uncomment the commands you need, fill in real values,
+$     delete unused commands, run SWAN with this file.
+$   - Automated use: a Python script reads this file, replaces {PLACEHOLDER}
+$     tokens and/or the marked WEC block, and writes a ready-to-run .swn file.
+$
+$ Command reference: based on the SWAN command tree (swan.edt) and the
+$ SNL-SWAN extension (SET OBCASE, WEC obstacle handling).
+$ ============================================================================
+
+
+$ ============================================================================
+$ 1. PROJECT
+$ ============================================================================
+PROJECT '{PROJECT_NAME}' '{PROJECT_NR}'
+$ '{TITLE1}'
+$ '{TITLE2}'
+$ '{TITLE3}'
+
+
+$ ============================================================================
+$ 2. SET  -  general numerical/physical parameters
+$ ============================================================================
+$ SET LEVEL={WATER_LEVEL} NOR={NORTH_DIR} DEPMIN={DEPMIN} MAXMES={MAXMES} &
+$     MAXERR={MAXERR} GRAV={GRAV} RHO={RHO} CDCAP={CDCAP} INRHOG={INRHOG} &
+$     HSRERR={HSRERR} {CART_OR_NAUT} PWTAIL={PWTAIL} &
+$     FROUDMAX={FROUDMAX} ICEWIND={ICEWIND}
+SET LEVEL {WATER_LEVEL}
+SET NAUTICAL
+
+$ SNL-SWAN specific: obstacle/WEC representation mode
+$ 0 = SWAN baseline transmission coefficient (TRANSM/TRANS1D/TRANS2D)
+$ 1 = Power Matrix, average transmission
+$ 2 = Relative Capture Width (RCW), average transmission
+$ 3 = Power Matrix, per-frequency transmission
+$ 4 = RCW, per-frequency transmission
+SET OBCASE {OBCASE}
+
+
+$ ============================================================================
+$ 3. MODE
+$ ============================================================================
+$ MODE STATIONARY|DYNAMIC  ONEDIMENSIONAL|TWODIMENSIONAL
+MODE {MODE} TWODIMENSIONAL
+
+
+$ ============================================================================
+$ 4. COORDINATES
+$ ============================================================================
+$ COORDINATES CARTESIAN|SPHERICAL [CCM|QC] [REPEATING]
+COORDINATES {COORDINATE_SYSTEM}
+
+
+$ ============================================================================
+$ 5. CGRID  -  computational grid
+$ ============================================================================
+$ Option A: regular grid
+$ CGRID REGULAR xpc ypc alpc xlenc ylenc mxc myc &
+$     CIRCLE mdc flow fhigh msc
+$ CGRID REGULAR {XPC} {YPC} {ALPC} {XLENC} {YLENC} {MXC} {MYC} &
+$     CIRCLE {MDC} {FLOW} {FHIGH} {MSC}
+
+$ Option B: curvilinear grid (requires READGRID COORDINATES)
+$ CGRID CURVILINEAR {MXC} {MYC} EXC {XEXC} {YEXC} &
+$     CIRCLE {MDC} {FLOW} {FHIGH} {MSC}
+$ READGRID COORDINATES {FAC} '{GRID_COORD_FILE}' {IDLA} {NHEDF} {FORMAT}
+
+$ Option C: unstructured grid (requires READGRID UNSTRUCTURED)
+$ CGRID UNSTRUCTURED CIRCLE {MDC} {FLOW} {FHIGH} {MSC}
+$ READGRID UNSTRUCTURED ADCIRC
+$ READGRID UNSTRUCTURED TRIANGLE '{MESH_BASENAME}'
+$ READGRID UNSTRUCTURED EASYMESH '{MESH_FNAME}'
+
+{CGRID_BLOCK}
+
+
+$ ============================================================================
+$ 6. INPGRID / READINP  -  input grids and data
+$ ============================================================================
+$ INPGRID must always precede its matching READINP.
+$ Repeat the pair below for every physical field the case requires:
+$ BOTTOM, WLEV, CURRENT, FRICTION, WIND, COOR, NPLANTS, TURB, MUDLAYER,
+$ AICE, HICE, HSS, TSS, DSS.
+
+$ --- BOTTOM (bathymetry) ---
+$ INPGRID BOTTOM REGULAR {XPINP} {YPINP} {ALPINP} {MXINP} {MYINP} {DXINP} {DYINP} &
+$     EXCEPTION {EXCVAL}
+$ READINP BOTTOM {FAC} '{BOTTOM_FILE}' {IDLA} {NHEDF} FREE
+{BOTTOM_INPGRID_BLOCK}
+{BOTTOM_READINP_BLOCK}
+
+$ --- WIND (optional) ---
+$ INPGRID WIND REGULAR {XPINP} {YPINP} {ALPINP} {MXINP} {MYINP} {DXINP} {DYINP} &
+$     NONSTATIONARY {TBEGINP} {DELTINP} {DELT_UNIT} {TENDINP}
+$ READINP WIND {FAC} '{WIND_FILE}' {IDLA} {NHEDF} FREE
+{WIND_BLOCK}
+
+$ --- CURRENT (optional) ---
+$ INPGRID CURRENT REGULAR {XPINP} {YPINP} {ALPINP} {MXINP} {MYINP} {DXINP} {DYINP} &
+$     NONSTATIONARY {TBEGINP} {DELTINP} {DELT_UNIT} {TENDINP}
+$ READINP CURRENT {FAC} '{CURRENT_FILE}' {IDLA} {NHEDF} FREE
+{CURRENT_BLOCK}
+
+$ --- WATER LEVEL (optional) ---
+$ INPGRID WLEV REGULAR {XPINP} {YPINP} {ALPINP} {MXINP} {MYINP} {DXINP} {DYINP} &
+$     NONSTATIONARY {TBEGINP} {DELTINP} {DELT_UNIT} {TENDINP}
+$ READINP WLEV {FAC} '{WLEV_FILE}' {IDLA} {NHEDF} FREE
+{WLEV_BLOCK}
+
+$ --- SPATIALLY VARYING FRICTION (optional) ---
+$ INPGRID FRICTION REGULAR {XPINP} {YPINP} {ALPINP} {MXINP} {MYINP} {DXINP} {DYINP}
+$ READINP FRICTION {FAC} '{FRICTION_FILE}' {IDLA} {NHEDF} FREE
+{FRICTION_FIELD_BLOCK}
+
+
+$ ============================================================================
+$ 7. BOUNDARY CONDITIONS
+$ ============================================================================
+$ Choose exactly one strategy and delete the others.
+
+$ --- Option A: parametric spectrum on one side ---
+$ BOUND SHAPESPEC JONSWAP {GAMMA} PEAK DSPR DEGREES
+$ BOUNDPAR1 SIDE {SIDE} CONSTANT PAR {HS} {PER} {DIR} {DD}
+
+$ --- Option B: parametric spectrum on a segment ---
+$ BOUNDSPEC SEGMENT XY {X1} {Y1} {X2} {Y2} CONSTANT PAR {HS} {PER} {DIR} {DD}
+
+$ --- Option C: variable spectrum from file along a segment ---
+$ BOUNDSPEC SEGMENT XY {X1} {Y1} {X2} {Y2} VARIABLE FILE {LEN} '{BOUNDARY_FILE}' {SEQ}
+
+$ --- Option D: nesting from a coarser SWAN run ---
+$ BOUNDNEST1 NEST '{NEST_FILE}' CLOSED
+
+{BOUNDARY_BLOCK}
+
+
+$ ============================================================================
+$ 8. INITIAL CONDITIONS (optional, default is usually fine)
+$ ============================================================================
+$ INITIAL DEFAULT
+$ INITIAL ZERO
+$ INITIAL PAR {HS} {PER} {DIR} {DD}
+$ INITIAL HOTSTART '{HOTSTART_FILE}'
+{INITIAL_BLOCK}
+
+
+$ ============================================================================
+$ 9. PHYSICS
+$ ============================================================================
+$ Fill in only the processes relevant to the case. Keep consistent with the
+$ SNL-SWAN OBCASE selected above when WEC obstacles are physically active.
+
+$ --- Generation ---
+$ GEN1 {CF10} {CF20} {CF30} {CF40} {EDMLPM} {CDRAG} {UMIN}
+$ GEN2 {CF10} {CF20} {CF30} {CF40} {CF50} {CF60} {EDMLPM} {CDRAG} {UMIN}
+$ GEN3 KOMEN
+$ GEN3 WESTHUYSEN
+$ GEN3 ST6 {A1SDS} {A2SDS} {P1SDS} {P2SDS}
+
+$ --- Whitecapping ---
+$ WCAP KOMEN
+$ WCAP AB
+
+$ --- Quadruplet interactions ---
+$ QUADRUPL {IQUAD} {LAMBDA} {CNL4} {CSH1} {CSH2} {CSH3}
+
+$ --- Breaking ---
+$ BREAKING CONSTANT {ALPHA} {GAMMA}
+$ BREAKING BKD {ALPHA} {GAMMA0} {A1} {A2} {A3}
+
+$ --- Bottom friction ---
+$ FRICTION JONSWAP {CFJON}
+$ FRICTION COLLINS {CFW}
+$ FRICTION MADSEN {KN}
+
+$ --- Triads ---
+$ TRIAD
+$ TRIAD DCTA {TRFAC} {P}
+
+$ --- Diffraction (optional) ---
+$ DIFFRACTION {SMPAR} {SMNUM} {CGMOD}
+
+{PHYSICS_BLOCK}
+
+
+$ ============================================================================
+$ 10. WEC OBSTACLES
+$ ============================================================================
+$ Baseline SWAN obstacle syntax (used when SET OBCASE 0):
+$   OBSTACLE TRANSM {TRCOEF} LINE {XP1} {YP1} {XP2} {YP2}
+$   OBSTACLE TRANS1D {TRCOEF} LINE {XP1} {YP1} {XP2} {YP2}
+$   OBSTACLE TRANS2D {TRCOEF} LINE {XP1} {YP1} {XP2} {YP2}
+$   OBSTACLE GODA {HGT} {ALPHA} {BETA} REFLEC {REFLC} LINE {XP1} {YP1} {XP2} {YP2}
+$   OBSTACLE DANGREMOND {HGT} {SLOPE} {BK} REFLEC {REFLC} LINE {XP1} {YP1} {XP2} {YP2}
+$
+$ SNL-SWAN WEC obstacle syntax (used when SET OBCASE 1-4), power/RCW curves
+$ are supplied through auxiliary files referenced elsewhere in the run
+$ (for example POWER.TXT or RCW.TXT), while the geometry is still declared
+$ here as one obstacle line per WEC:
+$   OBSTACLE TRANS 0 LINE {XP1} {YP1} {XP2} {YP2}
+$
+$ The block below is filled automatically by the layout-generation pipeline.
+$ One line per WEC, in the same order as the layout table.
+$
+$WEC_ARRAY_START
+{OBSTACLE_LINES}
+$WEC_ARRAY_END
+
+
+$ ============================================================================
+$ 11. NUMERICS (optional, defaults are usually fine)
+$ ============================================================================
+$ PROP BSBT
+$ NUMERIC ACCUR {DREL} {DHOVAL} {DTOVAL} {NPNTS}
+$ NUMERIC STOPC {DABS} {DREL} {CURVAT} {NPNTS}
+{NUMERICS_BLOCK}
+
+
+$ ============================================================================
+$ 12. OUTPUT LOCATIONS
+$ ============================================================================
+$ FRAME '{FRAME_NAME}' {XPFR} {YPFR} {ALPFR} {XLENFR} {YLENFR} {MXFR} {MYFR}
+$ POINTS '{POINTS_NAME}' FILE '{POINTS_FILE}'
+$ CURVE '{CURVE_NAME}' {XP1} {YP1} {INT} {XP2} {YP2}
+{FRAME_BLOCK}
+
+
+$ ============================================================================
+$ 13. OUTPUT REQUESTS
+$ ============================================================================
+$ BLOCK '{SNAME}' HEADER '{BLOCK_OUTPUT_FILE}' LAY-OUT {IDLA} HSIGN TM01 DIR RTP
+$ TABLE '{SNAME}' HEADER '{TABLE_OUTPUT_FILE}' XP YP DEP HSIGN TM01 DIR RTP
+$ SPECOUT '{SNAME}' SPEC2D ABS '{SPEC_OUTPUT_FILE}'
+{OUTPUT_BLOCK}
+
+
+$ ============================================================================
+$ 14. COMPUTE
+$ ============================================================================
+$ Stationary run:
+$ COMPUTE STATIONARY {TIME}
+$ COMPUTE
+
+$ Non-stationary run:
+$ COMPUTE NONSTATIONARY {TBEGC} {DELTC} {DELTC_UNIT} {TENDC}
+{COMPUTE_BLOCK}
+
+
+$ ============================================================================
+$ 15. STOP
+$ ============================================================================
+STOP

@@ -1,0 +1,58 @@
+# ==============================================================================
+# swan_defaults.yaml
+#
+# Internal fallback values for every SWAN parameter that build_swan_inputs.py
+# needs but the user's swan.yaml does not explicitly set.
+#
+# This file ships with the pipeline itself (not per-project). Do not put
+# project-specific paths here — only physically/numerically sensible defaults.
+# ==============================================================================
+
+mode: STATIONARY
+coordinate_system: CARTESIAN
+water_level: 0.0
+
+grid:
+  type: regular
+  mdc: 36
+  flow: 0.04
+  fhigh: 1.0
+  msc: 31
+  exc_value: -999.0
+  alpc: 0.0
+
+input_fields: {}
+
+boundary:
+  mode: side_par
+  side: W
+  jonswap_gamma: 3.3
+  dspr: 30.0
+
+physics:
+  gen3: KOMEN
+  wcap: KOMEN
+  breaking_alpha: 1.0
+  breaking_gamma: 0.73
+  friction_cfjon: 0.067
+  diffraction: false
+  diffraction_smpar: 0.0
+  diffraction_smnum: 1
+  diffraction_cgmod: 1
+
+numerics:
+  drel: 0.02
+  dhoval: 0.02
+  dtoval: 0.02
+  npnts: 98
+
+nonstationary:
+  tbegc: "20260101.000000"
+  deltc: 10
+  deltc_unit: MIN
+  tendc: "20260102.000000"
+
+layouts:
+  transmission_coef: 0.0
+  obcase: 0
+  wec_angle_deg: 90.0
