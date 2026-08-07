@@ -10,7 +10,7 @@ raw_dir:        "${root_dir}/data/raw"
 models_dir:     "${root_dir}/models"
 reports_dir:    "${root_dir}/reports"
 logs_dir:       "${root_dir}/reports/logs"
-templates_dir:  "${root_dir}/docs/templates
+templates_dir:  "${root_dir}/docs/templates"
 
 
 # SNL-SWAN executable
@@ -21,5 +21,8 @@ swan_input_template: "src/swan_inputs/templates/INPUT.swn.j2"
 grid_file:      "./data/processed_dir/boundary_conditions/*grid*"
 bottom_file:    "./data/processed_dir/boundary_conditions/*bottom*"
 
-# Wave data
+# Model Inputs
 scatter_csv:    "./data/raw/scatter_diagram/wave_data.csv"
+deployment_polygon_file: "./data/raw/area_plot.pol"
+#out_poly_path: "./data/processed_dir/deployment_polygon/deployment_polygon_out.pol"
+#exclusion_centers_file: "${root_dir}/data/raw/exclusion_centers.csv"

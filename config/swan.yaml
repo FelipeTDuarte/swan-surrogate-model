@@ -13,6 +13,30 @@
 # actually differs from the defaults for this project.
 # ==============================================================================
 
+project:
+  name: "surrogate-model"
+  nr: "00"
+  title1: "Surrogate model training"
+  title2: "WEC layout optimization"
+  title3: "SNL-SWAN surrogate model"
+
+set:
+  level: 0.00
+  nor: 90.00
+  deepmin: 0.05
+  maxmes: 200
+  maxerr: 2
+  grav: 9.81
+  rho: 1025.00
+  cdcap: 99999
+  inrhog: 1
+  hserr: 0.10
+  coord_convention: "CARTESIAN"
+  pwtail: 4
+  froudmax: 0.08
+  icewind: 0.00
+  excmark: 999
+
 mode: STATIONARY               # STATIONARY | NONSTATIONARY
 coordinate_system: CARTESIAN   # CARTESIAN | SPHERICAL
 water_level: 0.0
@@ -30,40 +54,865 @@ grid:
   flow: 0.04
   fhigh: 1.0
   msc: 31
+  exc_value: -999.0
+  alpc: 0.0
 
-# input_fields:
-#   wind_file: wind.txt
-#   current_file: current.txt
-#   tbeginp: "20260101.000000"
-#   deltinp: 1
-#   delt_unit: HR
-#   tendinp: "20260102.000000"
+# ==============================================================================
+# INPUT FIELDS — list of extra INPGRID/READINP blocks (bathymetry is
+# handled separately above and is always required). Each list item maps
+# onto the INPgrid/READinp syntax in swan.edt (spatial fields), OR onto
+# the standalone WIND/ICE scalar commands (uniform forcing).
+# ==============================================================================
+# kind -> WLEV | CUR | VX | VY | FR | WI | WX | WY | NPLA | TURB | MUDL |
+#         AICE | HICE | HSS | TSS | DSS   (spatial INPGRID/READINP field)
+#      -> WIND | ICE                       (uniform scalar shortcut —
+#         dedicated kinds, distinct from WI/WX/WY and AICE/HICE, since
+#         swan.edt only documents a scalar command for wind and ice)
+#
+# --- fields used only when kind: WIND ---
+# vel      -> uniform wind speed, m/s (required)
+# dir      -> uniform wind direction, degrees (required)
+#
+# --- fields used only when kind: ICE ---
+# aice     -> uniform ice concentration, fraction 0-1 (required)
+# hice     -> uniform ice thickness, m (required)
+#
+# --- fields used only for spatial fields (any other kind) ---
+# grid_type     -> REGULAR | CURVILINEAR | UNSTRUCTURED (defaults to grid.type above)
+# xpinp/ypinp   -> grid origin (REGULAR only; defaults to grid.xpc/ypc)
+# alpinp        -> grid rotation angle, degrees (REGULAR only; default 0.0)
+# mxinp/myinp   -> number of meshes in x/y (defaults to grid.mxc/myc)
+# dxinp/dyinp   -> mesh size in x/y (REGULAR only; defaults to grid.dxinp/dyinp)
+# stagrx/stagry -> staggering fractions (CURVILINEAR only; default 0/0)
+# exc_value     -> EXCEPTION value marking missing data (optional, omitted if unset)
+# nonstationary -> true/false; if true, adds the NONSTATionary time window
+# tbeginp       -> start time of the field time series (required if nonstationary)
+# deltinp       -> time step of the field time series (required if nonstationary)
+# delt_unit     -> SEC | MIN | HR | DAY (default HR)
+# tendinp       -> end time of the field time series (required if nonstationary)
+# file          -> input data filename (required)
+# fac           -> multiplication factor applied to the read values (default 1.0)
+# idla          -> data layout code, as in swan.edt Table (default 3)
+# nhedf         -> number of header lines to skip in the file (optional)
+# fmt           -> FREE | FORMAT '<fmt>' | UNFORMATTED (default FREE)
+
+
+input_fields:
+  # - kind: WIND                  # BOT|WLEV|CUR|VX|VY|FR|WI|WX|WY|NPLA|TURB|MUDL|AICE|HICE|HSS|TSS|DSS - WIND or ICE for Uniform fields
+  #   uniform: true               # true/false (default false). Only WI, AICE and HICE support uniform: true
+  #   vel: 10.0                   # uniform wind speed (m/s) if uniform: true
+  #   dir: 270.0                  # uniform wind direction (degrees) if uniform: true
+
+  - kind: WLEV
+    grid_type: REGULAR          # REGULAR | CURVILINEAR | UNSTRUCTURED
+    xpinp: 0.0                  # grid origin (REGULAR only; defaults to grid.xpc/ypc)
+    ypinp: 0.0                  # grid origin (REGULAR only; defaults to grid.xpc/ypc)  
+    alpinp: 0.0                 # grid rotation angle, degrees (REGULAR only; default 0.0)
+    mxinp: 250                  # number of meshes in x (defaults to grid.mxc/myc)
+    myinp: 150                  # number of meshes in y (defaults to grid.mxc/myc)
+    dxinp: 20.0                 # mesh size in x (REGULAR only; defaults to grid.dxinp)
+    dyinp: 20.0                 # mesh size in y (REGULAR only; defaults to grid.dyinp)
+    exc_value: -999.0           # EXCEPTION value marking missing data (optional, omitted if unset)
+    nonstationary: true         # true/false; if true, adds the NONSTATionary time window (default false)
+    tbeginp: "20260101.000000"  # start time of nonstationary forcing (required if nonstationary: true)
+    deltinp: 1                  # time step of nonstationary forcing (required if nonstationary: true)
+    delt_unit: HR               # SEC | MIN | HR | DAY (default HR)
+    tendinp: "20260102.000000"  # end time of nonstationary forcing (required if nonstationary: true)
+    fac: 1.0                    # scaling factor applied to the input field (optional, omitted if unset)
+    file: water_level.txt       # path to the input file (required) 
+    idla: 3                     #  data layout code (0-3), as in swan.edt Table (default 3)
+    nhedf: 0                    # number of header lines to skip in the input file (default 0)
+    fmt: FREE                   # FREE | FORMAT '<fmt>' | UNFORMATTED (default FREE) 
+
+  - kind: CUR
+    grid_type: CURVILINEAR
+    stagrx: 0.0                 # staggering fractions (CURVILINEAR only; default 0.0)
+    stagry: 0.0                 # staggering fractions (CURVILINEAR only; default 0.0)
+    mxinp: 250
+    myinp: 150
+    exc_value: -999.0
+    nonstationary: false
+    fac: 1.0
+    file: current.txt
+    idla: 3                     
+    nhedf: 0                    
+    fmt: FREE                  
+
+  - kind: FR
+    grid_type: REGULAR
+    file: friction.txt
+    exc_value: -999.0
 
 boundary:
-  mode: side_par                # side_par | segment_par | segment_file | nest
+  mode: side_par                # side_par | segment_par | segment_file | nest | wamnest | ww3nest
   side: W
   jonswap_gamma: 3.3
   dspr: 30.0
+  # shape: JONSWAP              # JONSWAP | PM | GAUSS | BIN | TMA (default JONSWAP)
+  # sigfr: 0.01                 # only used if shape: GAUSS
+  # d: 15.0                     # water depth, only used if shape: TMA
+  # peak_mean: PEAK              # PEAK | MEAN (default PEAK)
+  # dspr_mode: POWER             # POWER | DEGREES (default POWER)
+  # k: 1                         # optional corner index for SIDE
+  # rotation: CCW                # CCW | CLOCKWISE (default CCW)
+  # kind: CON                    # CON | VAR (constant or variable PAR along the side)
 
+  # sides:                       # multiple boundary sides, each with its own shape/params
+  #   - side: N
+  #     shape: JONSWAP
+  #     gamma: 3.3
+  #     hs: 1.2
+  #     per: 7.8
+  #     dir: 325.5
+  #     dd: 4.0
+  #   - side: W
+  #     shape: JONSWAP
+  #     gamma: 3.3
+  #     hs: 1.2
+  #     per: 7.8
+  #     dir: 325.5
+  #     dd: 4.0
+
+  # For mode: segment_par / segment_file — polygon boundary (N points)
+  # points:
+  #   - {x: 0, y: 0}
+  #   - {x: 1000, y: 0}
+  #   - {x: 1000, y: 500}
+  # kind: VAR                    # CON | VAR (VAR needs par_sets with 'len' per point)
+  # par_sets:                    # used when mode: segment_par
+  #   - {len: 0, hs: 1.2, per: 7.8, dir: 325.5}
+  #   - {len: 1000, hs: 1.5, per: 8.0, dir: 320.0}
+  # file: boundary_spectrum.txt  # used when mode: segment_file
+  # len: 1
+  # seq: 1
+
+  # For mode: nest
+  # nest_file: nest_boundary.sp2
+  # nest_mode: CLOSED             # CLOSED | OPEN
+
+  # For mode: wamnest
+  # nest_file: wam_result.nc
+  # nest_fmt: FREE                 # FREE | UNFORMATTED
+  # xgc: 0.0
+  # ygc: 0.0
+  # lwdate: 12
+
+  # For mode: ww3nest
+  # nest_file: ww3_result.nc
+  # nest_fmt: FREE
+  # nest_open_close: CLOSED        # CLOSED | OPEN
+  # xgc: 0.0
+  # ygc: 0.0
+
+# ==============================================================================
+# PHYSICS — every command mirrors swan.edt exactly. Nothing is required;
+# uncomment only the commands you want, fill their parameters, and SWAN
+# falls back to its own internal default for anything left commented.
+# ==============================================================================
 physics:
-  gen3: WESTHUYSEN
-  wcap: KOMEN
-  breaking_alpha: 1.0
-  breaking_gamma: 0.73
-  friction_cfjon: 0.067
-  diffraction: false
 
+  # ---------------------------------------------------------------------
+  # GEN1 / GEN2 / GEN3 — wave growth by wind (pick ONE gen.mode)
+  #   GEN1 [cf10][cf20][cf30][cf40][edmlpm][cdrag][umin]
+  #   GEN2 [cf10][cf20][cf30][cf40][cf50][cf60][edmlpm][cdrag][umin]
+  #   GEN3 <JANSsen[cds1][delta] | KOMen[cds2][stpm] | YAN | WESTH[cds2][br] |
+  #         BABANIN[a1sds][a2sds][p1sds][p2sds][cdsv]>
+  #        DRAG<WU|FIT|SWELL> ([feswell] <UP|DOWN> VECTAU TRUE10)
+  #     or GEN3 ST6[a1sds][a2sds][p1sds][p2sds] <UP|DOWN> <HWANG|FAN|ECMWF>
+  #        VECTAU|SCATAU <TRUE10|U10PROXY[windscaling]> DEBIAS[cdfac]
+  #   (AGROW [a])
+  # ---------------------------------------------------------------------
+  gen:
+    mode: GEN3                    # GEN1 | GEN2 | GEN3
+
+  #   # --- used only if mode: GEN1 ---
+  #   cf10: 188.0
+  #   cf20: 0.59
+  #   cf30: 0.12
+  #   cf40: 250.0
+  #   edmlpm: 0.0036
+  #   cdrag: 0.0012
+  #   umin: 1.0
+
+  #   # --- used only if mode: GEN2 (cf10..cf40, edmlpm, cdrag, umin above + these) ---
+  #   cf50: 0.0000108
+  #   cf60: 4.7
+
+  #   # --- used only if mode: GEN3 ---
+    gen3:
+      formulation: WESTH           # JANSSEN | KOMEN | YAN | WESTH | BABANIN | ST6
+      cds1: 4.5                    # used for JANSSEN
+      delta: 0.5                   # used for JANSSEN
+      cds2: 4.5                    # used for KOMEN or WESTH
+      stpm: 3.02e-3                # used for KOMEN
+      br: 1.75e-3                  # used for WESTH
+      a1sds: 4.7e-7                # used for BABANIN or ST6
+      a2sds: 6.6e-6                # used for BABANIN or ST6
+      p1sds: 4                     # used for BABANIN or ST6
+      p2sds: 4                     # used for BABANIN or ST6
+      cdsv: 1.0                    # used for BABANIN
+      feswell: 1.0                 # used for JANSSEN/KOMEN/YAN/WESTH/BABANIN drag block
+      drag: WU                     # WU | FIT | SWELL (used for JANSSEN/KOMEN/YAN/WESTH/BABANIN)
+      updown: UP                   # UP | DOWN (used for BABANIN drag block, or ST6)
+      vectau: true                 # true -> adds VECTAU (JANSSEN/KOMEN/YAN/WESTH/BABANIN) or
+                                    # VECTAU|SCATAU choice for ST6 (see scatau below)
+      scatau: false                # true -> ST6 uses SCATAU instead of VECTAU
+      true10: true                 # true -> adds TRUE10 (JANSSEN/KOMEN/YAN/WESTH/BABANIN),
+                                    # or selects TRUE10 branch for ST6 (else U10PROXY is used)
+      wind_input: HWANG            # HWANG | FAN | ECMWF (ST6 only, used after UP/DOWN)
+      u10proxy_windscaling: 32.0   # ST6 only, used if true10: false
+      dbias: 1.0                   # ST6 only -> adds DEBIAS [cdfac]
+      agrow: 0.0015                # any GEN3 formulation -> adds separate "GEN3 AGROW [a]" line
+
+  # ---------------------------------------------------------------------
+  # SSWELL — swell dissipation
+  # SSWELL ROGers[cdsv][feswell] | ARDhuin[cdsv] | ZIEger[b1]
+  # ---------------------------------------------------------------------
+  # sswell:
+  #   formulation: ARDHUIN           # ROGERS | ARDHUIN | ZIEGER
+  #   cdsv: 1.0                      # used for ROGERS/ARDHUIN
+  #   feswell: 1.0                   # used for ROGERS
+  #   b1: 0.00025                    # used for ZIEGER
+
+  # ---------------------------------------------------------------------
+  # NEGATINP — negative wind input
+  # NEGatinp [rdcoef]
+  # ---------------------------------------------------------------------
+  # negatinp_rdcoef: 0.0
+
+  # ---------------------------------------------------------------------
+  # WCAP — whitecapping dissipation
+  #   WCAP KOMen[cds2][stpm][powst][delta][powk] | JANSsen[cds1][delta][pwtail] |
+  #        LHIG[cflhig] | BJ[bjstp][bjalf] | KBJ[bjstp][bjalf][kconv] |
+  #        AB[cds2][br] CURrent[cds3]
+  # ---------------------------------------------------------------------
+  # wcap:
+  #   formulation: KOMEN              # KOMEN | JANSSEN | LHIG | BJ | KBJ | AB
+  #   cds2: 2.36e-5                   # used for KOMEN or AB
+  #   stpm: 3.02e-3                   # used for KOMEN
+  #   powst: 2                        # used for KOMEN
+  #   delta: 1                        # used for KOMEN or JANSSEN
+  #   powk: 1                         # used for KOMEN
+  #   cds1: 2.36e-5                   # used for JANSSEN
+  #   pwtail: 4                       # used for JANSSEN
+  #   cflhig: 1.0e5                   # used for LHIG
+  #   bjstp: 1.0                      # used for BJ or KBJ
+  #   bjalf: 1.0                      # used for BJ or KBJ
+  #   kconv: 1                        # used for KBJ
+  #   br: 1.75e-3                     # used for AB
+  #   current_cds3: 0.8               # used for AB -> adds "CURRENT [cds3]"
+
+  # ---------------------------------------------------------------------
+  # QUADRUPL — quadruplet wave interactions
+  # QUADrupl [iquad][lambda][cnl4][csh1][csh2][csh3]
+  # ---------------------------------------------------------------------
+  # disable_quadrupl: false           # true -> writes "OFF QUAD" instead
+  # quadrupl:
+  #   iquad: 2
+  #   lambda: 0.25
+  #   cnl4: 3.0e7
+  #   csh1: 5.5
+  #   csh2: 0.833
+  #   csh3: -1.25
+
+  # ---------------------------------------------------------------------
+  # MDIA — multiple discrete interaction approximation (alternative to QUADRUPL)
+  # MDIA LAMbda<[lambda]> <CNL4<[cnl4]> | CNL4_12<[cnl4_1][cnl4_2]>>
+  # ---------------------------------------------------------------------
+  # mdia:
+  #   lambdas: [0.25]                 # one or more [lambda] values
+  #   cnl4_mode: CNL4                 # CNL4 | CNL4_12
+  #   cnl4: [3.0e7]                   # used if cnl4_mode: CNL4 (one or more values)
+  #   cnl4_12: [[3.0e7, 3.0e7]]       # used if cnl4_mode: CNL4_12 (list of [cnl4_1, cnl4_2] pairs)
+
+  # ---------------------------------------------------------------------
+  # BREAKING — depth-induced wave breaking
+  #   BRE CON[alpha][gamma] | VAR[alpha][gammin][gammax][gamneg][coeff1][coeff2] |
+  #       RUE[alpha][a][b] | BKD[alpha][gamma0][a1][a2][a3][npnts] |
+  #       TG[alpha][gamma][pown]
+  #   (DIRectionality [spread])
+  #   (FREQDep [power][fmin][fmax])
+  # ---------------------------------------------------------------------
+  # break:
+  #   type: CON                       # CON | VAR | RUE | BKD | TG
+  #   alpha: 1.0
+  #   gamma: 0.73                     # used for CON/TG
+  #   gammin: 0.5                     # used for VAR
+  #   gammax: 0.8                     # used for VAR
+  #   gamneg: -0.4                    # used for VAR
+  #   coeff1: 8.06                    # used for VAR
+  #   coeff2: -0.8                    # used for VAR
+  #   a: 0.25                         # used for RUE
+  #   b: 1.0                          # used for RUE
+  #   gamma0: 0.54                    # used for BKD
+  #   a1: 0.0                         # used for BKD
+  #   a2: 0.0                         # used for BKD
+  #   a3: 0.0                         # used for BKD
+  #   npnts: 4                        # used for BKD
+  #   pown: 2                         # used for TG
+  #   directionality_spread: 0.0      # optional -> adds "DIRECTIONALITY [spread]"
+  #   freqdep_power: 0.0              # optional -> adds "FREQDEP [power][fmin][fmax]"
+  #   freqdep_fmin: 0.04
+  #   freqdep_fmax: 1.0
+
+  # ---------------------------------------------------------------------
+  # FRICTION — bottom friction dissipation
+  #   FRICtion JONswap CONstant[cfjon] | VARiable[cfj1][cfj2][dsp1][dsp2] |
+  #            COLLins[cfw][cfc] | MADsen[kn] | RIPples[S][D]
+  # ---------------------------------------------------------------------
+  # friction:
+  #   type: JONSWAP                   # JONSWAP | COLLINS | MADSEN | RIPPLES
+  #   variable: false                 # JONSWAP only: true -> VARIABLE form
+  #   cfjon: 0.067                    # JONSWAP CONSTANT
+  #   cfj1: 0.01                      # JONSWAP VARIABLE
+  #   cfj2: 0.067                     # JONSWAP VARIABLE
+  #   dsp1: 0.15                      # JONSWAP VARIABLE
+  #   dsp2: 0.25                      # JONSWAP VARIABLE
+  #   cfw: 0.01                       # COLLINS
+  #   cfc: 0.67                       # COLLINS
+  #   kn: 0.05                        # MADSEN
+  #   s: 0.05                         # RIPPLES
+  #   d: 0.02                         # RIPPLES
+
+  # ---------------------------------------------------------------------
+  # TRIAD — triad wave-wave interactions
+  #   TRIad DCTA[trfac][p] <COLL|NONC> | LTA[trfac][cutfr][dint] |
+  #         FTIM[trfac][dint] | SPB[trfac][a][b][dint]
+  #   BIPhase <ELDeberky[urcrit]|WIT[lpar]> TRAnsfer <FG|MS|BRedmose|QUadwave>
+  #   TRIad [itriad][trfac][cutfr][dint][a][b][p][urcrit][urslim][ic]   (legacy form)
+  # ---------------------------------------------------------------------
+  # triad:
+  #   enable: true
+  #   type: DCTA                      # DCTA | LTA | FTIM | SPB | LEGACY
+  #   trfac: 0.8
+  #   p: 4                            # used for DCTA
+  #   dcta_mode: COLL                 # COLL | NONC (used for DCTA)
+  #   cutfr: 2.5                      # used for LTA/SPB/LEGACY
+  #   dint: 0.01                      # used for LTA/FTIM/SPB/LEGACY
+  #   a: 0.95                         # used for SPB/LEGACY
+  #   b: -0.75                        # used for SPB/LEGACY
+  #   itriad: 1                       # used for LEGACY
+  #   urcrit: 0.2                     # used for LEGACY
+  #   urslim: 0.01                    # used for LEGACY
+  #   ic: 1                           # used for LEGACY
+  #   biphase:
+  #     type: ELDEBERKY               # ELDEBERKY | WIT
+  #     urcrit: 0.63                  # used for ELDEBERKY
+  #     lpar: 0.0                     # used for WIT
+  #     transfer: FG                  # FG | MS | BREDMOSE | QUADWAVE
+
+  # ---------------------------------------------------------------------
+  # BRAGG — Bragg scattering by bottom ripples
+  #  BRAgg [ibrag][nreg][cutoff] <FT | FILE 'fname'[idla][mkx][myk][dkx][dky]>
+  # ---------------------------------------------------------------------
+  # bragg:
+  #   ibrag: 1
+  #   nreg: 1
+  #   cutoff: 0.05
+  #   source: FT                      # FT | FILE
+  #   file: bragg_bottom.txt          # used if source: FILE
+  #   idla: 3                         # used if source: FILE
+  #   mkx: 100                        # used if source: FILE
+  #   mky: 100                        # used if source: FILE
+  #   dkx: 1.0                        # used if source: FILE
+  #   dky: 1.0                        # used if source: FILE
+
+  # ---------------------------------------------------------------------
+  # SCAT — wave-current/bottom scattering
+  #   SCAT [iqcm]
+  #   (GRId <WIDth[rfac] | Kxy[kxlow][kylow][kxlen][kylen][mkxc][mkyc]>)
+  #   (TRUnc [alpha][qmax])
+  # ---------------------------------------------------------------------
+  # scat:
+  #   iqcm: 1
+  #   grid_mode: WIDTH                # WIDTH | KXY
+  #   rfac: 1.0                       # used if grid_mode: WIDTH
+  #   kxlow: 0.0                      # used if grid_mode: KXY
+  #   kylow: 0.0                      # used if grid_mode: KXY
+  #   kxlen: 1.0                      # used if grid_mode: KXY
+  #   kylen: 1.0                      # used if grid_mode: KXY
+  #   mkxc: 50                        # used if grid_mode: KXY
+  #   mkyc: 50                        # used if grid_mode: KXY
+  #   trunc_alpha: 0.01               # optional -> adds "TRUNC [alpha][qmax]"
+  #   trunc_qmax: 0.5
+
+  # ---------------------------------------------------------------------
+  # VEGETATION — wave damping by vegetation
+  #  VEGEtation [iveg] <[height][diamtr][nstems][drag]>
+  # ---------------------------------------------------------------------
+  # vegetation:
+  #   iveg: 1
+  #   layers:                         # one entry per vertical layer
+  #     - {height: 1.0, diamtr: 0.01, nstems: 100, drag: 1.0}
+
+  # ---------------------------------------------------------------------
+  # TURBULENCE — wave damping by turbulence
+  #  TURBulence [ctb] (CURrent [tbcur])
+  # ---------------------------------------------------------------------
+  # turbulence:
+  #   ctb: 0.01
+  #   tbcur: 0.004                    # optional -> adds "CURRENT [tbcur]"
+
+  # ---------------------------------------------------------------------
+  # MUD — wave damping by fluid mud
+  #  MUD [layer][rhom][viscm][rhow][viscw]
+  # ---------------------------------------------------------------------
+  # mud:
+  #   layer: 1
+  #   rhom: 1300
+  #   viscm: 0.01
+  #   rhow: 1025
+  #   viscw: 1.0e-6
+
+  # ---------------------------------------------------------------------
+  # SICE — wave damping by sea ice
+  #  SICE R19[c0][c1][c2][c3][c4][c5][c6] | D15[Chf] | M18[Chf] | R21B[Chf][npf]
+  # ---------------------------------------------------------------------
+  # sice:
+  #   type: R19                       # R19 | D15 | M18 | R21B
+  #   c0: 0.0                         # used for R19
+  #   c1: 0.0                         # used for R19
+  #   c2: 0.0                         # used for R19
+  #   c3: 0.0                         # used for R19
+  #   c4: 0.0                         # used for R19
+  #   c5: 0.0                         # used for R19
+  #   c6: 0.0                         # used for R19
+  #   chf: 1.0                        # used for D15/M18/R21B
+  #   npf: 1                          # used for R21B
+
+  # ---------------------------------------------------------------------
+  # LIMITER — limits action density growth per iteration
+  #  LIMiter [ursell][qb]
+  # ---------------------------------------------------------------------
+  # limiter:
+  #   ursell: 10
+  #   qb: 1
+
+  # ---------------------------------------------------------------------
+  # SURFBEAT — surfbeat (infragravity wave) computation
+  #  SURFBeat [df][nmax][emin] <UNIForm|LOGarithmic>
+  # ---------------------------------------------------------------------
+  # surfbeat:
+  #   df: 0.01                      # frequency resolution near f=0, Hz
+  #   nmax: 100                     # max number of frequency bins added
+  #   emin: 0.0001                  # minimum energy density threshold
+  #   spacing: UNIFORM              # UNIFORM | LOGARITHMIC
+
+  # ---------------------------------------------------------------------
+  # SETUP (top-level, wave-induced) — mean water level set-up
+  #  SETUP [supcor]
+  # ---------------------------------------------------------------------
+  # setup_supcor: 0.0
+
+  # ---------------------------------------------------------------------
+  # DIFFRAC — diffraction
+  #  DIFFRAC [idiffr][smpar][smnum][cgmod]
+  # ---------------------------------------------------------------------
+  # diffraction:
+  #   idiffr: 1
+  #   smpar: 0.0
+  #   smnum: 1
+  #   cgmod: 1 
+
+  # ---------------------------------------------------------------------
+  # OFF — switch off a default-active physical process
+  #  OFF <process> WINDGrowth | QUADrupl | WCAPping | BREaking | REFrac |
+  #                FSHift | BNDCHK
+  # ---------------------------------------------------------------------
+  # off:
+  #   wind_growth: false
+  #   quad: false
+  #   wcapping: false
+  #   breaking: false
+  #   refrac: false
+  #   fshift: false
+  #   bndchk: false
+
+  # ---------------------------------------------------------------------
+  # PROP — propagation scheme
+  #  PROP BSBT | GSE [waveage] <SEC|MIN|HR|DAY>
+  # ---------------------------------------------------------------------
+  # prop:
+  #   scheme: BSBT                  # BSBT | GSE
+  #   waveage: 0.0                  # used only if scheme: GSE
+  #   waveage_unit: HR              # SEC | MIN | HR | DAY (used only if scheme: GSE)
+
+
+# ---------------------------------------------------------------------
+# NUMERIC — numerical solver controls (termination, iteration, schemes)
+# swan.edt:
+#   NUMeric <STOPC[dabs][drel][curvat][npnts][dtabs][curvt] |
+#            ACCUR[drel][dhoval][dtoval][npnts]>
+#           <STAT[mxitst][alfa] | NONSTat[mxitns]> [limiter]
+#   (DIRimpl [cdd] <DEP|WNUM>)
+#   (REFRLim [frlim][power])
+#   (<SIGIMpl[css][eps2][outp][niter] | SIGEXpl[css][cfl]>)
+#   (CTheta [cfl])
+#   (CSigma [cfl])
+#   (SETUP [eps2][outp][niter])
+# ---------------------------------------------------------------------
 numerics:
-  drel: 0.02
+#   termination: STOPC             # STOPC | ACCUR
+#   # --- used if termination: STOPC ---
+#   dabs: 0.005
+  drel: 0.01
+#   curvat: 0.005
+  npnts: 99.5
+#   dtabs: 0.005                   # dynamic runs only
+#   curvt: 0.005                   # dynamic runs only
+#   # --- used if termination: ACCUR (dhoval/dtoval instead of dabs/curvat/dtabs/curvt) ---
   dhoval: 0.02
   dtoval: 0.02
-  npnts: 98
+#
+#   iteration_mode: STAT           # STAT | NONSTAT
+#   mxitst: 50                     # used if iteration_mode: STAT
+#   alfa: 0.0                      # used if iteration_mode: STAT
+#   mxitns: 1                      # used if iteration_mode: NONSTAT
+#   limiter: 0.1                   # optional, applies to either mode
+#
+#   dirimpl_cdd: 0.5                # optional -> adds DIRIMPL [cdd] <DEP|WNUM>
+#   dirimpl_mode: DEP               # DEP | WNUM
+#
+#   refrlim_frlim: 0.0              # optional -> adds REFRLIM [frlim][power]
+#   refrlim_power: 0.0
+#
+#   sigma_scheme: SIGIMPL           # SIGIMPL | SIGEXPL (optional block)
+#   sigimpl_css: 0.0                # used if sigma_scheme: SIGIMPL
+#   sigimpl_eps2: 0.0
+#   sigimpl_outp: 0.0
+#   sigimpl_niter: 20
+#   sigexpl_css: 0.0                # used if sigma_scheme: SIGEXPL
+#   sigexpl_cfl: 0.9
+#
+#   ctheta_cfl: 0.9                 # optional -> adds CTHETA [cfl]
+#   csigma_cfl: 0.9                 # optional -> adds CSIGMA [cfl]
+#
+#   setup_eps2: 0.0                 # optional -> adds SETUP [eps2][outp][niter] (numeric SETUP)
+#   setup_outp: 0.0
+#   setup_niter: 20
 
-# nonstationary:               # only needed when mode: NONSTATIONARY
-#   tbegc: "20260101.000000"
-#   deltc: 10
-#   deltc_unit: MIN
-#   tendc: "20260102.000000"
+# ---------------------------------------------------------------------
+# OBSTACLE — transmission/reflection/diffraction by a sub-grid obstacle
+# (dams, breakwaters, quays). One list entry per obstacle line.
+# 
+#   OBSTacle TRANS1D<[trcoef]> | TRANS2D<[trcoef]> |
+#            DAM <GODA[hgt][alpha][beta] | DANGremond[hgt][slope][Bk]>
+#     (REFLec[reflc] <RSPEC | RDIFF[pown]>)
+#     (FREEboard[hgt][gammat][gammar] Quay)
+#     LINe <[xp][yp]>
+#
+#   OBSTacle FIG [alpha1][hss][tss][dss][dd][minfr][shape]
+#     (REFLec[reflc])
+#     LINe <[xp][yp]>
+# ---------------------------------------------------------------------
+obstacles:
+#   # --- constant transmission coefficient, frequency-independent ---
+#   - transmission: TRANS1D
+#     trcoef: [0.5]                  # one value applied to the whole spectrum
+#     # reflec: 0.3                  # optional -> adds REFLEC [reflc]
+#     # reflec_type: RSPEC           # RSPEC | RDIFF (default RSPEC if reflec is set)
+#     # reflec_pown: 1.0             # used only if reflec_type: RDIFF
+#     # freeboard_hgt: 1.0           # optional -> adds FREEBOARD [hgt][gammat][gammar] (Quay)
+#     # freeboard_gammat: 1.0
+#     # freeboard_gammar: 1.0
+#     # freeboard_quay: false        # true -> appends QUAY
+#     line:                          # required: obstacle polyline, 2+ points
+#       - {x: 500.0, y: 0.0}
+#       - {x: 500.0, y: 1000.0}
+#
+#   # --- frequency-dependent transmission coefficient (TRANS2D) ---
+#   - transmission: TRANS2D
+#     trcoef: [0.9, 0.7, 0.4, 0.1]    # one value per frequency bin (grid.msc)
+#     line:
+#       - {x: 500.0, y: 0.0}
+#       - {x: 500.0, y: 1000.0}
+#
+#   # --- Goda-type dam/breakwater transmission ---
+#   - transmission: DAM
+#     dam_type: GODA                 # GODA | DANGREMOND
+#     hgt: 2.0                       # crest height above reference level, m
+#     alpha: 2.6                     # empirical coefficient (GODA)
+#     beta: 0.15                     # empirical coefficient (GODA)
+#     line:
+#       - {x: 500.0, y: 0.0}
+#       - {x: 500.0, y: 1000.0}
+#
+#   # --- d'Angremond-type dam/breakwater transmission ---
+#   - transmission: DAM
+#     dam_type: DANGREMOND
+#     hgt: 2.0                       # crest height above reference level, m
+#     slope: 0.33                    # structure slope (1:slope)
+#     bk: 3.0                        # crest width, m
+#     reflec: 0.35
+#     reflec_type: RDIFF
+#     reflec_pown: 1.0
+#     line:
+#       - {x: 500.0, y: 0.0}
+#       - {x: 500.0, y: 1000.0}
+#
+#   # --- FIG variant: obstacle transmission by frequency-dependent formula ---
+#   - transmission: FIG
+#     alpha1: 1.0
+#     hss: 1.2                       # significant wave height at structure, m
+#     tss: 7.8                       # wave period at structure, s
+#     dss: 0.0                       # nearshore water depth at structure, m
+#     dd: 2.0                        # obstacle height above bottom, m
+#     minfr: 0.04                    # minimum frequency, Hz
+#     shape: 1                       # obstacle shape parameter (see swan.edt)
+#     reflec: 0.2                    # optional -> adds REFLEC [reflc] (no RSPEC/RDIFF for FIG)
+#     line:
+#       - {x: 500.0, y: 0.0}
+#       - {x: 500.0, y: 1000.0}
+
+# ---------------------------------------------------------------------
+# OUTPUT — output locations (FRAME/GROUP/CURVE/RAY/ISOLINE/POINTS/NGRID),
+# QUANTITY definitions, OUTPUT OPTIONS, and output requests
+# (BLOCK/TABLE/SPECOUT/NESTOUT). Everything here is optional; SWAN only
+# produces output for what is explicitly defined below.
+# ---------------------------------------------------------------------
+output:
+
+  # ---------------------------------------------------------------------
+  # LOCATIONS — named output locations/sets, referenced by 'sname' in the
+  # output requests below (block/table/specout/nestout entries use
+  # "location:" to point at one of these names).
+  # swan.edt:
+  #   FRAME   'sname' [xpfr][ypfr][alpfr][xlenfr][ylenfr][mxfr][myfr]
+  #   GROUP   'sname' SUBGRID [ix1][ix2][iy1][iy2]
+  #   CURVE   'sname' [xp1][yp1] <[int][xp][yp]>
+  #   RAY     'rname' [xp1][yp1][xq1][yq1] <[int][xp][yp][xq][yq]>
+  #   ISOLINE 'sname' 'rname' <DEPTH|BOTTOM> [dep]
+  #   POINTS  'sname' <[xp][yp]> | FILE 'fname'
+  #   NGRID   'sname' <[xpn][ypn][alpn][xlenn][ylenn][mxn][myn] |
+  #                    UNSTRUCTURED <TRIANGLE|EASYMESH> 'fname'>
+  # ---------------------------------------------------------------------
+# locations:
+#   # --- FRAME: a regular output sub-grid ---
+#   - type: FRAME
+#     sname: "FRAME1"
+#     xpfr: 0.0
+#     ypfr: 0.0
+#     alpfr: 0.0
+#     xlenfr: 5000.0
+#     ylenfr: 3000.0
+#     mxfr: 250
+#     myfr: 150
+#
+#   # --- GROUP: a sub-set of the computational grid ---
+#   - type: GROUP
+#     sname: "GROUP1"
+#     ix1: 0
+#     ix2: 249
+#     iy1: 0
+#     iy2: 149
+#
+#   # --- CURVE: an output curve made of one or more straight segments ---
+#   - type: CURVE
+#     sname: "CURVE1"
+#     xp1: 0.0
+#     yp1: 0.0
+#     segments:                     # one or more extra points along the curve
+#       - {int: 50, xp: 1000.0, yp: 500.0}
+#       - {int: 50, xp: 2000.0, yp: 1000.0}
+#
+#   # --- RAY: a ray used together with ISOLINE to trace a depth contour ---
+#   - type: RAY
+#     rname: "RAY1"
+#     xp1: 0.0
+#     yp1: 0.0
+#     xq1: 100.0
+#     yq1: 100.0
+#     segments:                     # optional additional ray segments
+#       - {int: 10, xp: 500.0, yp: 500.0, xq: 600.0, yq: 600.0}
+#
+#   # --- ISOLINE: a curve following a depth contour, built from a RAY ---
+#   - type: ISOLINE
+#     sname: "ISOLINE1"
+#     rname: "RAY1"                 # must match a RAY defined above
+#     kind: DEPTH                   # DEPTH | BOTTOM
+#     dep: 10.0
+#
+#   # --- POINTS: an explicit set of output points, inline ---
+#   - type: POINTS
+#     sname: "POINTS1"
+#     points:
+#       - {xp: 100.0, yp: 200.0}
+#       - {xp: 300.0, yp: 400.0}
+#
+#   # --- POINTS: read from an external file instead of inline points ---
+#   - type: POINTS
+#     sname: "POINTS2"
+#     file: points.txt
+#
+#   # --- NGRID: an unstructured or regular nested output grid ---
+#   - type: NGRID
+#     sname: "NGRID1"
+#     mode: REGULAR                 # REGULAR | UNSTRUCTURED
+#     # --- used if mode: REGULAR ---
+#     xpn: 0.0
+#     ypn: 0.0
+#     alpn: 0.0
+#     xlenn: 5000.0
+#     ylenn: 3000.0
+#     mxn: 250
+#     myn: 150
+#     # --- used if mode: UNSTRUCTURED ---
+#     # mesher: TRIANGLE            # TRIANGLE | EASYMESH
+#     # file: mesh.node
+
+  # ---------------------------------------------------------------------
+  # QUANTITY — customize units, exponential notation thresholds, exception
+  # values, or physical parameters for one or more output quantities.
+  # swan.edt:
+  #   QUANTity <quant...> 'short' 'long' [lexp] [hexp] [excv]
+  #             [power] [ref] [fswell] [fmin] [fmax]
+  #             <PROBLEMCOORD | FRAME>
+  # ---------------------------------------------------------------------
+# quantities:
+#   - quant: [HSIGN]                 # one or more of the BLOCK/TABLE keyword list
+#     short: "Hs"
+#     long: "Significant wave height"
+#     lexp: 0.0                      # value below which exponential notation is used
+#     hexp: 10.0                     # value above which exponential notation is used
+#     excv: -9.0                     # exception value for missing data
+#     power: 1.0                     # used for e.g. HSWELL/steepness-type quantities
+#     ref: 0.0                       # reference value, used for some quantities (e.g. WATLEV)
+#     fswell: 0.0                    # swell separation frequency, Hz (used for HSWELL)
+#     fmin: 0.04                     # min frequency, Hz (used for frequency-integrated quantities)
+#     fmax: 1.0                      # max frequency, Hz
+#     coord: PROBLEMCOORD            # PROBLEMCOORD | FRAME
+
+  # ---------------------------------------------------------------------
+  # OUTPUT OPTIONS — formatting defaults applied to TABLE/BLOCK/SPEC output
+  # swan.edt: OUTPut OPTIons 'comment' (TABle [field]) (BLOck [ndec][len]) (SPEC [ndec])
+  # ---------------------------------------------------------------------
+# output_options:
+#   comment: "$"                    # comment character used in TABLE headers
+#   table_field: 12                 # field width for TABLE output columns
+#   block_ndec: 4                   # number of decimals for BLOCK output
+#   block_len: 12                   # field length for BLOCK output
+#   spec_ndec: 4                    # number of decimals for SPEC output
+
+  # ---------------------------------------------------------------------
+  # OUTPUT REQUESTS — BLOCK, TABLE, SPECOUT, NESTOUT. Each entry writes
+  # results for a 'location' defined above to a file.
+  # swan.edt:
+  #   BLOCk 'sname' <HEADER|NOHEADER> 'fname' (LAY-OUT [idla])
+  #         <quantity-list> ([unit]) (OUTPUT [tbegblk][deltblk] SEC|MIN|HR|DAY)
+  #   TABLE 'sname' <HEADER|NOHEADER|INDEXED> 'fname'
+  #         <quantity-list> ([unit]) (OUTPUT [tbegtbl][delttbl] SEC|MIN|HR|DAY)
+  #   SPECout 'sname' <SPEC1D|SPEC2D> <ABS|REL> <S|L> 'fname'
+  #           (MONth) (ESCAle) (COMPress) (OUTput [tbeg][delt] SEC|MIN|HR|DAY)
+  #   NESTout 'sname' 'fname' (OUTput [tbeg][delt] SEC|MIN|HR|DAY)
+  # ---------------------------------------------------------------------
+# requests:
+#   # --- BLOCK: gridded output over a FRAME/GROUP/NGRID location ---
+#   - type: BLOCK
+#     location: "FRAME1"            # must match a locations[].sname above
+#     header: true                  # true -> HEADER, false -> NOHEADER
+#     file: out_block.mat
+#     idla: 3                       # optional -> adds LAY-OUT [idla]
+#     quantities: [HSIGN, TM01, DIR, DEPTH]   # any of the BLOCK keyword list
+#     unit: m                       # optional unit override
+#     nonstationary: true
+#     tbeg: "20260101.000000"       # required if nonstationary: true
+#     delt: 1
+#     delt_unit: HR                 # SEC | MIN | HR | DAY (default HR)
+#
+#   # --- TABLE: point/curve output in tabular form ---
+#   - type: TABLE
+#     location: "POINTS1"
+#     header: HEADER                # HEADER | NOHEADER | INDEXED
+#     file: out_table.tbl
+#     quantities: [HSIGN, RTP, DIR, DEPTH, WATLEV]
+#     nonstationary: false
+#
+#   # --- SPECOUT: spectral output ---
+#   - type: SPECOUT
+#     location: "POINTS1"
+#     spec_dim: SPEC2D               # SPEC1D | SPEC2D
+#     spec_coord: ABS                # ABS | REL
+#     spec_form: S                   # S (SWAN ASCII) | L (long/binary)
+#     file: out_spec.sp2
+#     month: false                   # true -> adds MONTH
+#     escale: false                  # true -> adds ESCALE
+#     compress: false                # true -> adds COMPRESS
+#     nonstationary: true
+#     tbeg: "20260101.000000"
+#     delt: 1
+#     delt_unit: HR
+#
+#   # --- NESTOUT: boundary spectra for a nested run ---
+#   - type: NESTOUT
+#     location: "CURVE1"
+#     file: nest_boundary.sp2
+#     nonstationary: true
+#     tbeg: "20260101.000000"
+#     delt: 1
+#     delt_unit: HR
+
+# ==============================================================================
+# TEST — diagnostic/test output during computation
+# swan.edt:
+#   TEST [itest][itrace] POINTS <IJ<[i][j]> | <[k]> | XY<[x][y]>>
+#        PAR 'fname' S1D 'fname' S2D 'fname'
+# ==============================================================================
+# test:
+#   itest: 1                        # level of test output, 0 = none
+#   itrace: 0                       # tracing level for subroutine calls
+#   points_mode: IJ                 # IJ | K | XY
+#   # --- used if points_mode: IJ (computational grid indices) ---
+#   ij_points:
+#     - {i: 10, j: 20}
+#     - {i: 15, j: 25}
+#   # --- used if points_mode: K (single running index) ---
+#   k_points: [100, 200, 300]
+#   # --- used if points_mode: XY (physical coordinates) ---
+#   xy_points:
+#     - {x: 1000.0, y: 500.0}
+#     - {x: 2000.0, y: 800.0}
+#   par_file: test_par.txt           # optional -> adds PAR 'fname'
+#   s1d_file: test_s1d.txt           # optional -> adds S1D 'fname'
+#   s2d_file: test_s2d.txt           # optional -> adds S2D 'fname'
+
+# ==============================================================================
+# COMPUTE — run the computation, stationary or nonstationary (required).
+# Can be a single command or a list, for staged/nonstationary runs with
+# multiple COMPUTE calls (e.g. hotstart chaining).
+# swan.edt:
+#   COMPute <STATionary [time]>
+#   COMPute ([tbegc][deltc] <SEC|MIN|HR|DAY> [tendc])
+# ==============================================================================
+compute:
+  mode: STATIONARY                 # STATIONARY | NONSTATIONARY
+
+  # --- used if mode: STATIONARY ---
+  # time: "20260101.000000"        # optional; omit for a single-time stationary run
+
+  # --- used if mode: NONSTATIONARY ---
+  # tbegc: "20260101.000000"
+  # deltc: 1
+  # deltc_unit: HR                 # SEC | MIN | HR | DAY
+  # tendc: "20260102.000000"
+
+  # --- multiple COMPUTE stages (overrides the single mode/time above if set) ---
+  # stages:
+  #   - mode: STATIONARY
+  #     time: "20260101.000000"
+  #   - mode: NONSTATIONARY
+  #     tbegc: "20260101.000000"
+  #     deltc: 1
+  #     deltc_unit: HR
+  #     tendc: "20260102.000000"
+
+# ==============================================================================
+# HOTFILE — write a hotstart file at the end of the run
+# swan.edt: HOTFile 'fname' <FREE | UNFormatted>
+# ==============================================================================
+# hotfile:
+#   file: hotstart_out.dat
+#   fmt: FREE                       # FREE | UNFORMATTED
+
 
 layouts:
   transmission_coef: 0.0        # OBSTACLE TRANSM coefficient

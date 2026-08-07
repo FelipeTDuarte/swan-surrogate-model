@@ -16,149 +16,512 @@ $ ============================================================================
 $ 1. PROJECT
 $ ============================================================================
 PROJECT '{{ problem_id }}' '{{ run_id }}'
+{% if title1 is defined %}    '{{ title1 }}'
+{% endif %}
+{%- if title2 is defined %}    '{{ title2 }}'
+{% endif %}
+{%- if title3 is defined %}    '{{ title3 }}'
+{% endif %}
 
 
 $ ============================================================================
 $ 2. SET
 $ ============================================================================
-SET LEVEL {{ water_level | default(0.0) }}
-SET NAUTICAL
+SET     LEVEL = {{ LEVEL | default("0.00") }} NOR =  {{ NOR | default("90.00") }}               &
+        DEPMIN = {{ DEPMIN | default("0.05") }} MAXMES =  {{ MAXMES | default("200") }}         &
+        MAXERR = {{ MAXERR | default("2") }} GRAV =   {{ GRAV | default("9.81") }}              &
+        RHO =  {{ RHO | default("1025.00") }} CDCAP = {{ CDCAP | default("99999") }}        &
+        INRHOG =   {{ INRHOG | default("1") }} HSRERR = {{ HSRERR | default("0.10") }}          &
+        {{ COORD_CONVENTION | default("CARTESIAN") }} PWTail = {{ PWTail | default("4") }}       &
+        FROUDMAX = {{ FROUDMAX | default("0.08") }} ICEWIND = {{ ICEWIND | default("0.00") }}   &
+        EXCMARK = {{ EXCMARK | default("999") }}
 
-$ SNL-SWAN obstacle/WEC representation mode
-$ 0 = baseline SWAN transmission coefficient
-$ 1 = Power Matrix, average transmission
-$ 2 = Relative Capture Width (RCW), average transmission
-$ 3 = Power Matrix, per-frequency transmission
-$ 4 = RCW, per-frequency transmission
-SET OBCASE {{ obcase | default(0) }}
+{% if obcase is defined %}
+SET OBCASE = {{ obcase }}
+{% endif %}
 
 
 $ ============================================================================
 $ 3. MODE
 $ ============================================================================
-MODE {{ mode | default("STATIONARY") }} TWODIMENSIONAL
+MODE {{ mode | default("STATIONARY") }} {{ dimentions | default("TWODIMENSIONAL") }}
 
 
 $ ============================================================================
 $ 4. COORDINATES
 $ ============================================================================
-COORDINATES {{ coordinate_system | default("CARTESIAN") }}
+COORDINATES {{ coordinate_system | default("CARTESIAN") }} & 
+{% if coordinate_system == "SPHERICAL" %} projection {{ projection | default("CCM") }} {% endif %} &    
+{% if repeating == "on" %} REPEATING {% endif %} &
 
 
 $ ============================================================================
 $ 5. CGRID — computational grid
 $ ============================================================================
-{% if grid_type == "unstructured" %}
-CGRID UNSTRUCTURED CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
-READGRID UNSTRUCTURED TRIANGLE '{{ grid_file }}'
-{% elif grid_type == "curvilinear" %}
-CGRID CURVILINEAR {{ mxc }} {{ myc }} EXC {{ xexc }} {{ yexc }} &
-    CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
-READGRID COORDINATES 1 '{{ grid_file }}' 4 0 0 FREE
+{% if grid_type == "UNSTRUCTURED" %}
+CGRID UNSTRUCTURED {{ spectral_direction | default("CIRCLE") }} {% if spectral_direction == "SECTOR" %}
+    {{ sector_angle1 }} {{ sector_angle2 }} {% endif %} &
+    {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+READGRID UNSTRUCTURED {{ grid_method | default("ADCIRC") }} & 
+    {% if grid_method == "TRIAGLE" or grid_method == "EASYMESH" %} '{{ grid_file }}' {% endif%}
+{% elif grid_type == "CURVILINEAR" %}
+CGRID CURVILINEAR {{ mxc }} {{ myc }} &
+    EXCEPT {{ curv_exc_x | default(0.0) }} {{ curv_exc_y | default(0.0) }}  &
+    {{ spectral_direction | default("CIRCLE") }} {% if spectral_direction == "SECTOR" %} &
+    {{ sector_angle1 }} {{ sector_angle2 }} {% endif %} &
+    {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+READGRID COORDINATES 1 '{{ grid_file }}' {{ IDLA | default("4") }} {{NHEDF | default("0") }} {{NHEDVEC | default("0") }} {{ grid_read_method | default("FREE") }} &
+                     {% if spectral_direction == "FORMAT" %} {{ format_file }} {% endif %}
 {% else %}
-CGRID REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ xlenc }} {{ ylenc }} {{ mxc }} {{ myc }} &
-    CIRCLE {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
+CGRID REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ xlenc }} {{ ylenc }} {{ mxc }} {{ myc }} 
+    {{ spectral_direction | default("CIRCLE") }} {% if spectral_direction == "SECTOR" %} 
+    {{ sector_angle1 }} {{ sector_angle2 }} {% endif %} {{ mdc }} {{ flow }} {{ fhigh }} {{ msc }}
 {% endif %}
 
 
 $ ============================================================================
-$ 6. INPGRID / READINP — bathymetry (required)
+$ 6. INPGRID / READINP — one block per input field (bathymetry is required;
+$    all others — wind, current, water level, friction, turbulence, mud,
+$    ice, spectral partitions — are optional and only appear if declared
+$    in swan.yaml under `input_fields`).
 $ ============================================================================
-{% if grid_type == "unstructured" %}
-INPGRID BOTTOM UNSTRUCTURED EXCEPTION {{ exc_value | default(-999.0) }}
-READINP BOTTOM 1.0 '{{ bottom_file }}' 3 FREE
-{% elif grid_type == "curvilinear" %}
-INPGRID BOTTOM CURVILINEAR 0 0 {{ mxc }} {{ myc }} EXCEPTION {{ exc_value | default(-999.0) }}
-READINP BOTTOM 1.0 '{{ bottom_file }}' 4 0 FREE
-{% else %}
-INPGRID BOTTOM REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
-    EXCEPTION {{ exc_value | default(-999.0) }}
-READINP BOTTOM 1.0 '{{ bottom_file }}' 3 FREE
+{% macro inpgrid_block(kind, gtype, xpinp, ypinp, alpinp, mxinp, myinp, dxinp, dyinp,
+                        stagrx, stagry, excval, nonstat, tbeginp, deltinp, delt_unit, tendinp,
+                        fname, fac, idla, nhedf, fmt) %}
+{% set gtype_u = gtype | upper %}
+{% if gtype_u == "REGULAR" %}
+INPGRID {{ kind }} REGULAR {{ xpinp }} {{ ypinp }} {{ alpinp | default(0.0, true) }} {{ mxinp }} {{ myinp }} {{ dxinp }} {{ dyinp }}{% if excval is defined and excval is not none %} &
+    EXCEPTION {{ excval }}{% endif %}{% if nonstat %} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR", true) }} {{ tendinp }}{% endif %}
+{% elif gtype_u == "CURVILINEAR" %}
+INPGRID {{ kind }} CURVILINEAR {{ stagrx | default(0, true) }} {{ stagry | default(0, true) }} {{ mxinp }} {{ myinp }}{% if excval is defined and excval is not none %} &
+    EXCEPTION {{ excval }}{% endif %}{% if nonstat %} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR", true) }} {{ tendinp }}{% endif %}
+{% elif gtype_u == "UNSTRUCTURED" %}
+INPGRID {{ kind }} UNSTRUCTURED{% if excval is defined and excval is not none %} EXCEPTION {{ excval }}{% endif %}{% if nonstat %} &
+    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR", true) }} {{ tendinp }}{% endif %}
 {% endif %}
 
+READINP {{ kind }} {{ fac | default(1.0, true) }} '{{ fname }}' {{ idla | default(3, true) }}{% if nhedf is defined and nhedf is not none %} {{ nhedf }}{% endif %} {{ fmt | default("FREE", true) }}
+{% endmacro %}
+{{ inpgrid_block("BOTTOM", grid_type, xpc, ypc, alpc, mxc, myc, dxinp, dyinp,
+                  none, none, exc_value, false, none, none, none, none,
+                  bottom_file, 1.0, 3, none, "FREE") }}
+{% if input_fields is defined %}
+{% for f in input_fields %}
+{{ inpgrid_block(f.kind, f.grid_type | default(grid_type), f.get("xpinp", xpc), f.get("ypinp", ypc),
+                  f.get("alpinp", alpc), f.get("mxinp", mxc), f.get("myinp", myc),
+                  f.get("dxinp", dxinp), f.get("dyinp", dyinp),
+                  f.get("stagrx"), f.get("stagry"), f.get("exc_value"), f.get("nonstationary", false),
+                  f.get("tbeginp"), f.get("deltinp"), f.get("delt_unit"), f.get("tendinp"),
+                  f.file, f.get("fac", 1.0), f.get("idla", 3), f.get("nhedf"), f.get("fmt", "FREE")) }}
+{% endfor %}
+{% endif %}
+{% if wind_vel is defined %}
+WIND {{ wind_vel }} {{ wind_dir }}
+{% endif %}
+{% if ice_aice is defined %}
+ICE {{ ice_aice }} {{ ice_hice }}
+{% endif %}
 
 $ ============================================================================
-$ 7. OPTIONAL INPUT FIELDS
+$ 7. BOUNDARY CONDITIONS
 $ ============================================================================
-{% if wind_file %}
-INPGRID WIND REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
-    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
-READINP WIND 1.0 '{{ wind_file }}' 3 0 FREE
-{% endif %}
-{% if current_file %}
-INPGRID CURRENT REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
-    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
-READINP CURRENT 1.0 '{{ current_file }}' 3 0 FREE
-{% endif %}
-{% if wlev_file %}
-INPGRID WLEV REGULAR {{ xpc }} {{ ypc }} {{ alpc | default(0.0) }} {{ mxc }} {{ myc }} {{ dxinp }} {{ dyinp }} &
-    NONSTATIONARY {{ tbeginp }} {{ deltinp }} {{ delt_unit | default("HR") }} {{ tendinp }}
-READINP WLEV 1.0 '{{ wlev_file }}' 3 0 FREE
-{% endif %}
 
+{% macro shapespec_line(shape, gamma, sigfr, d, peak_mean, dspr_mode) %}
+{% set shape_u = (shape | default("JONSWAP")) | upper %}
+{% if shape_u == "JONSWAP" %}
+BOUN SHAPE JONSWAP{% if gamma is defined %}   {{ gamma }}{% endif %} {{ peak_mean | default("PEAK", true) }} DSPR {{ dspr_mode | default("POWER", true) }}
+{% elif shape_u == "PM" %}
+BOUN SHAPE PM {{ peak_mean | default("PEAK", true) }} DSPR {{ dspr_mode | default("POWER", true) }}
+{% elif shape_u == "GAUSS" %}
+BOUN SHAPE GAUSS{% if sigfr is defined %}   {{ sigfr }}{% endif %} {{ peak_mean | default("PEAK", true) }} DSPR {{ dspr_mode | default("POWER", true) }}
+{% elif shape_u == "BIN" %}
+BOUN SHAPE BIN {{ peak_mean | default("PEAK", true) }} DSPR {{ dspr_mode | default("POWER", true) }}
+{% elif shape_u == "TMA" %}
+BOUN SHAPE TMA{% if gamma is defined %}   {{ gamma }}{% endif %}{% if d is defined %}   {{ d }}{% endif %} {{ peak_mean | default("PEAK", true) }} DSPR {{ dspr_mode | default("POWER", true) }}
+{% endif %}
+{% endmacro %}
 
-$ ============================================================================
-$ 8. BOUNDARY CONDITIONS
-$ ============================================================================
 {% if boundary_mode == "segment_file" %}
-BOUNDSPEC SEGMENT XY {{ bnd_x1 }} {{ bnd_y1 }} {{ bnd_x2 }} {{ bnd_y2 }} &
-    VARIABLE FILE {{ bnd_len | default(1) }} '{{ boundary_file }}'
+BOUNDSPEC SEGMENT XY{% for pt in bnd_points %} {{ pt.x }} {{ pt.y }}{% endfor %} &
+    {{ boundary_kind | default("VAR", true) }} FILE {{ bnd_len | default(1) }} '{{ boundary_file }}'{% if bnd_seq is defined %} {{ bnd_seq }}{% endif %}
 {% elif boundary_mode == "segment_par" %}
-BOUNDSPEC SEGMENT XY {{ bnd_x1 }} {{ bnd_y1 }} {{ bnd_x2 }} {{ bnd_y2 }} &
-    CONSTANT PAR {{ Hs }} {{ Tp }} {{ Dir }} {{ dspr | default(30.0) }}
+BOUNDSPEC SEGMENT XY{% for pt in bnd_points %} {{ pt.x }} {{ pt.y }}{% endfor %} &
+    {{ boundary_kind | default("CON", true) }} PAR{% for p in bnd_par_sets %} {% if boundary_kind in ("VAR", "VARIABLE") %}{{ p.len }} {% endif %}{{ p.hs }} {{ p.per }} {{ p.dir }}{% if p.dd is defined %} {{ p.dd }}{% endif %}{% endfor %}
 {% elif boundary_mode == "nest" %}
-BOUNDNEST1 NEST '{{ nest_file }}' CLOSED
+BOUNDNEST1 NEST '{{ nest_file }}' {{ nest_mode | default("CLOSED", true) }}
+{% elif boundary_mode == "wamnest" %}
+BOUNDNEST2 WAMNEST '{{ nest_file }}' {{ nest_fmt | default("FREE", true) }}{% if xgc is defined %} {{ xgc }} {{ ygc }}{% endif %}{% if lwdate is defined %} {{ lwdate }}{% endif %}
+{% elif boundary_mode == "ww3nest" %}
+BOUNDNEST3 WW3 '{{ nest_file }}' {{ nest_fmt | default("FREE", true) }} {{ nest_open_close | default("CLOSED", true) }}{% if xgc is defined %} {{ xgc }} {{ ygc }}{% endif %}
 {% else %}
-BOUND SHAPESPEC JONSWAP {{ jonswap_gamma | default(3.3) }} PEAK DSPR DEGREES
-BOUNDPAR1 SIDE {{ boundary_side | default("W") }} CONSTANT PAR {{ Hs }} {{ Tp }} {{ Dir }} {{ dspr | default(30.0) }}
+{% if boundary_sides is defined %}
+{% for b in boundary_sides %}
+{{ shapespec_line(b.shape, b.get("gamma", jonswap_gamma), b.get("sigfr"), b.get("d"), b.get("peak_mean"), b.get("dspr_mode")) }}
+BOUN SIDE {{ b.side }}{% if b.k is defined %} {{ b.k }}{% endif %}  {{ b.get("rotation", "CCW") }}     &
+                    {{ b.get("boundary_kind", "CON") }}  PAR     {{ b.get("hs", Hs) }}   {{ b.get("per", Tp) }}  {{ b.get("dir", Dir) }}{% if b.dd is defined %}    {{ b.dd }}{% elif dspr is defined %}    {{ dspr }}{% endif %}
+
+{% endfor %}
+{% else %}
+{{ shapespec_line(shape, jonswap_gamma, sigfr, d, peak_mean, dspr_mode) }}
+BOUN SIDE {{ boundary_side | default("W") }}{% if boundary_k is defined %} {{ boundary_k }}{% endif %}  {{ boundary_rotation | default("CCW", true) }}     &
+                    {{ boundary_kind | default("CON", true) }}  PAR     {{ Hs }}   {{ Tp }}  {{ Dir }}{% if dspr is defined %}    {{ dspr }}{% endif %}
+{% endif %}
 {% endif %}
 
+$ ============================================================================
+$ 8. PHYSICS
+$    Every command below is only written if the user explicitly configures
+$    it under swan_cfg["physics"]. Omitted physics = SWAN's own built-in
+$    default for that process (see swan.edt per command).
+$ ============================================================================
+{% if gen_mode == "GEN1" %}
+GEN1{% if gen_cf10 is defined %} {{ gen_cf10 }}{% endif %}{% if gen_cf20 is defined %} {{ gen_cf20 }}{% endif %}{% if gen_cf30 is defined %} {{ gen_cf30 }}{% endif %}{% if gen_cf40 is defined %} {{ gen_cf40 }}{% endif %}{% if gen_edmlpm is defined %} {{ gen_edmlpm }}{% endif %}{% if gen_cdrag is defined %} {{ gen_cdrag }}{% endif %}{% if gen_umin is defined %} {{ gen_umin }}{% endif %}
+{% elif gen_mode == "GEN2" %}
+GEN2{% if gen_cf10 is defined %} {{ gen_cf10 }}{% endif %}{% if gen_cf20 is defined %} {{ gen_cf20 }}{% endif %}{% if gen_cf30 is defined %} {{ gen_cf30 }}{% endif %}{% if gen_cf40 is defined %} {{ gen_cf40 }}{% endif %}{% if gen_cf50 is defined %} {{ gen_cf50 }}{% endif %}{% if gen_cf60 is defined %} {{ gen_cf60 }}{% endif %}{% if gen_edmlpm is defined %} {{ gen_edmlpm }}{% endif %}{% if gen_cdrag is defined %} {{ gen_cdrag }}{% endif %}{% if gen_umin is defined %} {{ gen_umin }}{% endif %}
+{% elif gen_mode == "GEN3" or gen_mode is not defined %}
+GEN3{% if gen3_formulation is defined %} {{ gen3_formulation }}{% endif %}{% if gen3_a1sds is defined %} {{ gen3_a1sds }} {{ gen3_a2sds }} {{ gen3_p1sds }} {{ gen3_p2sds }}{% endif %}{% if gen3_cdsv is defined %} {{ gen3_cdsv }}{% endif %}{% if gen3_feswell is defined %} {{ gen3_feswell }}{% endif %}{% if gen3_updown is defined %} {{ gen3_updown }}{% endif %}{% if gen3_wind_input is defined %} {{ gen3_wind_input }}{% endif %}{% if gen3_dbias is defined %} DEBIAS {{ gen3_dbias }}{% endif %}
+{% if gen3_agrow is defined %}
+GEN3 AGROW {{ gen3_agrow }}
+{% endif %}
+{% endif %}
 
-$ ============================================================================
-$ 9. PHYSICS
-$ ============================================================================
-GEN3 {{ gen3_formulation | default("KOMEN") }}
-WCAP {{ wcap_formulation | default("KOMEN") }}
-QUADRUPL
-BREAKING CONSTANT {{ breaking_alpha | default(1.0) }} {{ breaking_gamma | default(0.73) }}
-FRICTION JONSWAP {{ friction_cfjon | default(0.067) }}
-TRIAD
+{% if sswell_formulation is defined %}
+SSWELL {{ sswell_formulation }}{% if sswell_cdsv is defined %} {{ sswell_cdsv }}{% endif %}{% if sswell_feswell is defined %} {{ sswell_feswell }}{% endif %}{% if sswell_b1 is defined %} {{ sswell_b1 }}{% endif %}
+{% endif %}
+
+{% if negatinp_rdcoef is defined %}
+NEGATINP {{ negatinp_rdcoef }}
+{% endif %}
+
+{% if wcap_formulation is defined %}
+WCAP {{ wcap_formulation }}{% if wcap_cds2 is defined %} {{ wcap_cds2 }}{% endif %}{% if wcap_stpm is defined %} {{ wcap_stpm }}{% endif %}{% if wcap_powst is defined %} {{ wcap_powst }}{% endif %}{% if wcap_delta is defined %} {{ wcap_delta }}{% endif %}{% if wcap_powk is defined %} {{ wcap_powk }}{% endif %}{% if wcap_br is defined %} {{ wcap_br }}{% endif %}{% if wcap_current_cds3 is defined %} CURRENT {{ wcap_current_cds3 }}{% endif %}
+{% endif %}
+
+{% if disable_quadrupl is defined and disable_quadrupl %}
+OFF QUAD
+{% elif quadrupl_iquad is defined or quadrupl_lambda is defined %}
+QUADRUPL{% if quadrupl_iquad is defined %} {{ quadrupl_iquad }}{% endif %}{% if quadrupl_lambda is defined %} {{ quadrupl_lambda }}{% endif %}{% if quadrupl_cnl4 is defined %} {{ quadrupl_cnl4 }}{% endif %}{% if quadrupl_csh1 is defined %} {{ quadrupl_csh1 }} {{ quadrupl_csh2 }} {{ quadrupl_csh3 }}{% endif %}
+{% endif %}
+
+{% if breaking_type is defined or breaking_alpha is defined or breaking_gamma is defined %}
+{% set btype = breaking_type | default("CON", true) | upper %}
+{% if btype == "CON" %}
+BREAK CON       {{ breaking_alpha | default(1.00) }}    {{ breaking_gamma | default(0.73) }}
+{% elif btype == "VAR" %}
+BREAK VAR       {{ breaking_alpha | default(1.00) }}  {{ breaking_gammin }}  {{ breaking_gammax }}  {{ breaking_gamneg }}  {{ breaking_coeff1 }}  {{ breaking_coeff2 }}
+{% elif btype == "RUE" %}
+BREAK RUE       {{ breaking_alpha | default(1.00) }}  {{ breaking_a }}  {{ breaking_b }}
+{% elif btype == "BKD" %}
+BREAK BKD       {{ breaking_alpha | default(1.00) }}  {{ breaking_gamma0 }}  {{ breaking_a1 }}  {{ breaking_a2 }}  {{ breaking_a3 }}  {{ breaking_npnts }}
+{% elif btype == "TG" %}
+BREAK TG        {{ breaking_alpha | default(1.00) }}  {{ breaking_gamma }}  {{ breaking_pown }}
+{% endif %}
+{% endif %}
+
+{% if friction_type is defined or friction_cfjon is defined %}
+{% set ftype = friction_type | default("JONSWAP", true) | upper %}
+{% if ftype == "JONSWAP" %}
+{% if friction_variable %}
+FRIC JONSWAP VARIABLE {{ friction_cfj1 }} {{ friction_cfj2 }} {{ friction_dsp1 }} {{ friction_dsp2 }}
+{% else %}
+FRIC JON       {{ friction_cfjon | default(0.067) }}
+{% endif %}
+{% elif ftype == "COLLINS" %}
+FRIC COLLINS {{ friction_cfw }} {{ friction_cfc }}
+{% elif ftype == "MADSEN" %}
+FRIC MADSEN {{ friction_kn }}
+{% elif ftype == "RIPPLES" %}
+FRIC RIPPLES {{ friction_s }} {{ friction_d }}
+{% endif %}
+{% endif %}
+
+{% if enable_triad is defined and enable_triad %}
+{% set ttype = triad_type | default("DCTA", true) | upper %}
+{% if ttype == "DCTA" %}
+TRIAD DCTA{% if triad_trfac is defined %} {{ triad_trfac }}{% endif %}{% if triad_p is defined %} {{ triad_p }}{% endif %}{% if triad_biphase is defined %} {{ triad_biphase }}{% endif %}
+{% elif ttype == "LTA" %}
+TRIAD LTA{% if triad_trfac is defined %} {{ triad_trfac }}{% endif %}{% if triad_cutfr is defined %} {{ triad_cutfr }}{% endif %}{% if triad_dint is defined %} {{ triad_dint }}{% endif %}
+{% elif ttype == "SPB" %}
+TRIAD SPB{% if triad_trfac is defined %} {{ triad_trfac }}{% endif %}{% if triad_a is defined %} {{ triad_a }}{% endif %}{% if triad_b is defined %} {{ triad_b }}{% endif %}{% if triad_p is defined %} {{ triad_p }}{% endif %}{% if triad_dint is defined %} {{ triad_dint }}{% endif %}
+{% elif ttype == "LEGACY" %}
+TRIAD{% if triad_itriad is defined %} {{ triad_itriad }}{% endif %}{% if triad_trfac is defined %} {{ triad_trfac }}{% endif %}{% if triad_cutfr is defined %} {{ triad_cutfr }}{% endif %}{% if triad_dint is defined %} {{ triad_dint }}{% endif %}
+{% endif %}
+{% endif %}
+
+{% if vegetation_iveg is defined %}
+VEGETATION {{ vegetation_iveg }}{% for v in vegetation_layers %} {{ v.height }} {{ v.diamtr }} {{ v.nstems }} {{ v.drag }}{% endfor %}
+{% endif %}
+
+{% if turbulence_ctb is defined %}
+TURBULENCE {{ turbulence_ctb }}{% if turbulence_tbcur is defined %} CURRENT {{ turbulence_tbcur }}{% endif %}
+{% endif %}
+
+{% if mud_layer is defined %}
+MUD {{ mud_layer }} {{ mud_rhom }} {{ mud_viscm }} {{ mud_rhow }} {{ mud_viscw }}
+{% endif %}
+
+{% if sice_type is defined %}
+{% set stype = sice_type | upper %}
+{% if stype == "R19" %}
+SICE R19{% if sice_c0 is defined %} {{ sice_c0 }} {{ sice_c1 }} {{ sice_c2 }} {{ sice_c3 }} {{ sice_c4 }} {{ sice_c5 }} {{ sice_c6 }}{% endif %}
+{% elif stype == "D15" %}
+SICE D15{% if sice_chf is defined %} {{ sice_chf }}{% endif %}
+{% elif stype == "M18" %}
+SICE M18{% if sice_chf is defined %} {{ sice_chf }}{% endif %}
+{% elif stype == "R21B" %}
+SICE R21B{% if sice_chf is defined %} {{ sice_chf }} {{ sice_npf }}{% endif %}
+{% endif %}
+{% endif %}
+
+{% if limiter_ursell is defined or limiter_qb is defined %}
+LIMITER  {{ limiter_ursell | default(10) }} {{ limiter_qb | default(1) }}
+{% endif %}
+
+{% if surfbeat_df is defined %}
+SURFBEAT {{ surfbeat_df }} {{ surfbeat_nmax }} {{ surfbeat_emin }} {{ surfbeat_spacing | default("UNIFORM", true) }}
+{% endif %}
+
+{% if setup_supcor is defined %}
+SETUP {{ setup_supcor }}
+{% endif %}
+
 {% if diffraction %}
-DIFFRACTION {{ diffraction_smpar | default(0.0) }} {{ diffraction_smnum | default(1) }} {{ diffraction_cgmod | default(1) }}
+DIFFRAC {{ diffraction_idiffr | default(1) }} {{ diffraction_smpar | default(0.0) }} {{ diffraction_smnum | default(1) }} {{ diffraction_cgmod | default(1) }}
+{% endif %}
+
+{% if disable_wind_growth is defined and disable_wind_growth %}
+OFF WINDG
+{% endif %}
+{% if disable_wcapping is defined and disable_wcapping %}
+OFF WCAPPING
+{% endif %}
+{% if disable_breaking is defined and disable_breaking %}
+OFF BREAKING
+{% endif %}
+{% if disable_refrac is defined and disable_refrac %}
+OFF REFRAC
+{% endif %}
+{% if disable_fshift is defined and disable_fshift %}
+OFF FSHIFT
+{% endif %}
+{% if disable_bndchk is defined and disable_bndchk %}
+OFF BNDCHK
+{% endif %}
+
+{% if prop_scheme is defined %}
+{% if prop_scheme == "BSBT" %}
+PROP BSBT
+{% elif prop_scheme == "GSE" %}
+PROP GSE {{ prop_waveage }} {{ prop_waveage_unit | default("HR", true) }}
+{% endif %}
+{% endif %}
+
+$ ============================================================================
+$ 9. NUMERICS
+$ ============================================================================
+
+{% if numeric_termination is defined or numeric_iteration_mode is defined %}
+NUMERIC {% if numeric_termination | default("STOPC", true) == "STOPC" %}STOPC{% if numeric_dabs is defined %} {{ numeric_dabs }}{% endif %}{% if numeric_drel is defined %} {{ numeric_drel }}{% endif %}{% if numeric_curvat is defined %} {{ numeric_curvat }}{% endif %}{% if numeric_npnts is defined %} {{ numeric_npnts }}{% endif %}{% if numeric_dtabs is defined %} {{ numeric_dtabs }}{% endif %}{% if numeric_curvt is defined %} {{ numeric_curvt }}{% endif %}{% else %}ACCUR{% if numeric_drel is defined %} {{ numeric_drel }}{% endif %}{% if numeric_dhoval is defined %} {{ numeric_dhoval }}{% endif %}{% if numeric_dtoval is defined %} {{ numeric_dtoval }}{% endif %}{% if numeric_npnts is defined %} {{ numeric_npnts }}{% endif %}{% endif %} &
+{% if numeric_iteration_mode | default("STAT", true) == "STAT" %}
+    STAT{% if numeric_mxitst is defined %} {{ numeric_mxitst }}{% endif %}{% if numeric_alfa is defined %} {{ numeric_alfa }}{% endif %}{% if numeric_limiter is defined %} {{ numeric_limiter }}{% endif %}
+
+{% else %}
+    NONSTAT{% if numeric_mxitns is defined %} {{ numeric_mxitns }}{% endif %}{% if numeric_limiter is defined %} {{ numeric_limiter }}{% endif %}
+
+{% endif %}
+{% if numeric_dirimpl_cdd is defined %}
+NUMERIC DIRIMPL {{ numeric_dirimpl_cdd }} {{ numeric_dirimpl_mode | default("DEP", true) }}
+{% endif %}
+{% if numeric_refrlim_frlim is defined %}
+NUMERIC REFRLIM {{ numeric_refrlim_frlim }} {{ numeric_refrlim_power }}
+{% endif %}
+{% if numeric_sigma_scheme is defined %}
+{% if numeric_sigma_scheme == "SIGIMPL" %}
+NUMERIC SIGIMPL{% if numeric_sigimpl_css is defined %} {{ numeric_sigimpl_css }}{% endif %}{% if numeric_sigimpl_eps2 is defined %} {{ numeric_sigimpl_eps2 }}{% endif %}{% if numeric_sigimpl_outp is defined %} {{ numeric_sigimpl_outp }}{% endif %}{% if numeric_sigimpl_niter is defined %} {{ numeric_sigimpl_niter }}{% endif %}
+
+{% else %}
+NUMERIC SIGEXPL{% if numeric_sigexpl_css is defined %} {{ numeric_sigexpl_css }}{% endif %}{% if numeric_sigexpl_cfl is defined %} {{ numeric_sigexpl_cfl }}{% endif %}
+
+{% endif %}
+{% endif %}
+{% if numeric_ctheta_cfl is defined %}
+NUMERIC CTHETA {{ numeric_ctheta_cfl }}
+{% endif %}
+{% if numeric_csigma_cfl is defined %}
+NUMERIC CSIGMA {{ numeric_csigma_cfl }}
+{% endif %}
+{% if numeric_setup_eps2 is defined %}
+NUMERIC SETUP {{ numeric_setup_eps2 }} {{ numeric_setup_outp }} {{ numeric_setup_niter }}
+{% endif %}
+{% endif %}
+
+$ ============================================================================
+$ 10. OBSTACLE — sub-grid obstacles (dams, breakwaters, quays)
+$ ============================================================================
+{% if obstacles is defined %}
+{% for o in obstacles %}
+{% set trans = o.transmission | upper %}
+{% if trans == "TRANS1D" %}
+OBSTACLE TRANS1D{% for c in o.trcoef %} {{ c }}{% endfor %} &
+{% elif trans == "TRANS2D" %}
+OBSTACLE TRANS2D{% for c in o.trcoef %} {{ c }}{% endfor %} &
+{% elif trans == "DAM" %}
+{% set dtype = o.dam_type | upper %}
+{% if dtype == "GODA" %}
+OBSTACLE DAM GODA {{ o.hgt }} {{ o.alpha }} {{ o.beta }} &
+{% elif dtype == "DANGREMOND" %}
+OBSTACLE DAM DANGREMOND {{ o.hgt }} {{ o.slope }} {{ o.bk }} &
+{% endif %}
+{% elif trans == "FIG" %}
+OBSTACLE FIG {{ o.alpha1 }} {{ o.hss }} {{ o.tss }} {{ o.dss }} {{ o.dd }} {{ o.minfr }} {{ o.shape }} &
+{% endif %}
+{% if o.reflec is defined %}
+    REFLEC {{ o.reflec }}{% if o.reflec_type is defined %} {{ o.reflec_type }}{% if o.reflec_type|upper == "RDIFF" and o.reflec_pown is defined %} {{ o.reflec_pown }}{% endif %}{% endif %} &
+{% endif %}
+{% if o.freeboard_hgt is defined %}
+    FREEBOARD {{ o.freeboard_hgt }} {{ o.freeboard_gammat | default(1.0, true) }} {{ o.freeboard_gammar | default(1.0, true) }}{% if o.freeboard_quay %} QUAY{% endif %} &
+{% endif %}
+    LINE{% for pt in o.line %} {{ pt.x }} {{ pt.y }}{% endfor %}
+
+{% endfor %}
 {% endif %}
 
 
 $ ============================================================================
-$ 10. WEC OBSTACLES
+$ 11. OUTPUT 
 $ ============================================================================
-$ One OBSTACLE line per WEC, generated from the layout table.
-$WEC_ARRAY_START
-{{ wec_block }}
-$WEC_ARRAY_END
+
+{% if quantities is defined %}
+{% for q in quantities %}
+QUANTITY{% for qk in q.quant %} {{ qk }}{% endfor %} '{{ q.short }}' '{{ q.long }}'{% if q.lexp is defined %} {{ q.lexp }}{% endif %}{% if q.hexp is defined %} {{ q.hexp }}{% endif %}{% if q.excv is defined %} {{ q.excv }}{% endif %}{% if q.power is defined %} {{ q.power }}{% endif %}{% if q.ref is defined %} {{ q.ref }}{% endif %}{% if q.fswell is defined %} {{ q.fswell }}{% endif %}{% if q.fmin is defined %} {{ q.fmin }}{% endif %}{% if q.fmax is defined %} {{ q.fmax }}{% endif %}{% if q.coord is defined %} {{ q.coord }}{% endif %}
+{% endfor %}
+{% endif %}
 
 
-$ ============================================================================
-$ 11. NUMERICS
-$ ============================================================================
-PROP BSBT
-NUMERIC ACCUR {{ num_drel | default(0.02) }} {{ num_dhoval | default(0.02) }} {{ num_dtoval | default(0.02) }} {{ num_npnts | default(98) }}
+{% if locations is defined %}
+{% for loc in locations %}
+{% if loc.type == "FRAME" %}
+FRAME '{{ loc.sname }}' {{ loc.xpfr }} {{ loc.ypfr }} {{ loc.alpfr }} {{ loc.xlenfr }} {{ loc.ylenfr }} {{ loc.mxfr }} {{ loc.myfr }}
+{% elif loc.type == "GROUP" %}
+GROUP '{{ loc.sname }}' SUBGRID {{ loc.ix1 }} {{ loc.ix2 }} {{ loc.iy1 }} {{ loc.iy2 }}
+{% elif loc.type == "CURVE" %}
+CURVE '{{ loc.sname }}' {{ loc.xp1 }} {{ loc.yp1 }}{% for s in loc.segments | default([], true) %} {{ s.int }} {{ s.xp }} {{ s.yp }}{% endfor %}
+
+{% elif loc.type == "RAY" %}
+RAY '{{ loc.rname }}' {{ loc.xp1 }} {{ loc.yp1 }} {{ loc.xq1 }} {{ loc.yq1 }}{% for s in loc.segments | default([], true) %} {{ s.int }} {{ s.xp }} {{ s.yp }} {{ s.xq }} {{ s.yq }}{% endfor %}
+
+{% elif loc.type == "ISOLINE" %}
+ISOLINE '{{ loc.sname }}' '{{ loc.rname }}' {{ loc.kind | default("DEPTH", true) }} {{ loc.dep }}
+{% elif loc.type == "POINTS" %}
+{% if loc.file is defined %}
+POINTS '{{ loc.sname }}' FILE '{{ loc.file }}'
+
+{% else %}
+POINTS '{{ loc.sname }}'{% for pt in loc.points %} {{ pt.xp }} {{ pt.yp }}{% endfor %}
+
+{% endif %}
+{% elif loc.type == "NGRID" %}
+{% if loc.mode == "UNSTRUCTURED" %}
+NGRID '{{ loc.sname }}' UNSTRUCTURED {{ loc.mesher | default("TRIANGLE", true) }} '{{ loc.file }}'
+{% else %}
+NGRID '{{ loc.sname }}' {{ loc.xpn }} {{ loc.ypn }} {{ loc.alpn }} {{ loc.xlenn }} {{ loc.ylenn }} {{ loc.mxn }} {{ loc.myn }}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
 
 
-$ ============================================================================
-$ 12. OUTPUT
-$ ============================================================================
-BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Hs.mat' LAY-OUT 3 HSIGN
-BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Tm01.mat' LAY-OUT 3 RTM01
-BLOCK 'COMPGRID' HEADER '{{ output_prefix | default("out") }}_Dir.mat' LAY-OUT 3 DIR
+{% if output_options_comment is defined %}
+OUTPUT OPTIONS '{{ output_options_comment }}'{% if output_options_table_field is defined %} TABLE {{ output_options_table_field }}{% endif %}{% if output_options_block_ndec is defined %} BLOCK {{ output_options_block_ndec }} {{ output_options_block_len }}{% endif %}{% if output_options_spec_ndec is defined %} SPEC {{ output_options_spec_ndec }}{% endif %}
+{% endif %}
 
+
+{% if requests is defined %}
+{% for r in requests %}
+{% if r.type == "BLOCK" %}
+BLOCK '{{ r.location }}' {{ "HEADER" if r.header else "NOHEADER" }} '{{ r.file }}'{% if r.idla is defined %} LAY-OUT {{ r.idla }}{% endif %} &
+    {% for q in r.quantities %}{{ q }} {% endfor %}{% if r.unit is defined %}{{ r.unit }}{% endif %}{% if r.nonstationary %} &
+    OUTPUT {{ r.tbeg }} {{ r.delt }} {{ r.delt_unit | default("HR", true) }}{% endif %}
+
+{% elif r.type == "TABLE" %}
+TABLE '{{ r.location }}' {{ r.header | default("HEADER", true) }} '{{ r.file }}' &
+    {% for q in r.quantities %}{{ q }} {% endfor %}{% if r.unit is defined %}{{ r.unit }}{% endif %}{% if r.nonstationary %} &
+    OUTPUT {{ r.tbeg }} {{ r.delt }} {{ r.delt_unit | default("HR", true) }}{% endif %}
+
+{% elif r.type == "SPECOUT" %}
+SPECOUT '{{ r.location }}' {{ r.spec_dim | default("SPEC2D", true) }} {{ r.spec_coord | default("ABS", true) }} {{ r.spec_form | default("S", true) }} '{{ r.file }}'{% if r.month %} MONTH{% endif %}{% if r.escale %} ESCALE{% endif %}{% if r.compress %} COMPRESS{% endif %}{% if r.nonstationary %} &
+    OUTPUT {{ r.tbeg }} {{ r.delt }} {{ r.delt_unit | default("HR", true) }}{% endif %}
+
+{% elif r.type == "NESTOUT" %}
+NESTOUT '{{ r.location }}' '{{ r.file }}'{% if r.nonstationary %} &
+    OUTPUT {{ r.tbeg }} {{ r.delt }} {{ r.delt_unit | default("HR", true) }}{% endif %}
+
+{% endif %}
+{% endfor %}
+{% endif %}
+
+$ ============================================================================
+$ 12. TEST
+$ ============================================================================
+{% if test_itest is defined %}
+{% set has_par = test_par_file is defined %}
+{% set has_s1d = test_s1d_file is defined %}
+{% set has_s2d = test_s2d_file is defined %}
+{% set has_par_block = has_par or has_s1d or has_s2d %}
+TEST {{ test_itest }} {{ test_itrace | default(0, true) }} &
+{% if test_points_mode == "IJ" %}
+    POINTS IJ{% for p in test_ij_points %} {{ p.i }} {{ p.j }}{% endfor %}{% if has_par_block %} &
+{% endif %}
+
+{% elif test_points_mode == "K" %}
+    POINTS{% for k in test_k_points %} {{ k }}{% endfor %}{% if has_par_block %} &
+{% endif %}
+
+{% elif test_points_mode == "XY" %}
+    POINTS XY{% for p in test_xy_points %} {{ p.x }} {{ p.y }}{% endfor %}{% if has_par_block %} &
+{% endif %}
+
+{% endif %}
+{% if has_par %}
+    PAR '{{ test_par_file }}'{% if has_s1d or has_s2d %} &
+{% endif %}
+
+{% endif %}
+{% if has_s1d %}
+    S1D '{{ test_s1d_file }}'{% if has_s2d %} &
+{% endif %}
+
+{% endif %}
+{% if has_s2d %}
+    S2D '{{ test_s2d_file }}'
+{% endif %}
+{% endif %}
 
 $ ============================================================================
 $ 13. COMPUTE
 $ ============================================================================
-{% if mode == "NONSTATIONARY" %}
-COMPUTE NONSTATIONARY {{ tbegc }} {{ deltc }} {{ deltc_unit | default("MIN") }} {{ tendc }}
+{% macro render_compute(mode, time, tbegc, deltc, deltc_unit, tendc) %}
+{% if mode | default("STATIONARY", true) == "STATIONARY" %}
+COMPUTE STATIONARY{% if time is defined %} {{ time }}{% endif %}
 {% else %}
-COMPUTE
+COMPUTE {% if tbegc is defined %}{{ tbegc }} {{ deltc }} {{ deltc_unit | default("HR", true) }}{% if tendc is defined %} {{ tendc }}{% endif %}{% endif %}
+{% endif %}
+{% endmacro %}
+{% if compute_stages is defined %}
+{% for s in compute_stages %}
+{{ render_compute(s.mode, s.time, s.tbegc, s.deltc, s.deltc_unit, s.tendc) }}
+{% endfor %}
+{% else %}
+{{ render_compute(compute_mode, compute_time, compute_tbegc, compute_deltc, compute_deltc_unit, compute_tendc) }}
+{% endif %}
+
+$ ============================================================================
+$ 14. HOTFILE
+$ ============================================================================
+{% if hotfile_file is defined %}
+HOTFILE '{{ hotfile_file }}' {{ hotfile_fmt | default("FREE", true) }}
 {% endif %}
 
 STOP

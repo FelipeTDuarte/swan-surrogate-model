@@ -14,12 +14,15 @@ grid_mode: "swan"    → reads swan grid file
 #          "delft3d" → reads delft3d grd file and convert to SWAN
 #          "build"   → builds a new regular CGRID regular from build_params
 
-# ─── Layouts & domain ─────────────────────────────────────────────────────────
-layouts:
+# ─── Domain ─────────────────────────────────────────────────────────
+grid:
   grid_mode: "swan"              # swan | delft3d | build
 
-  # used only if grid_mode = "build"
-  build_params:
+  domain_bounds:
+    x: [null, null]    # meters
+    y: [null, null]    # meters
+
+  build_params:                  # Usado apenas se grid_mode = "build" 
     xpc:   0.0                   # X origin
     ypc:   0.0                   # Y Origin 
     alpc:  0.0                   # rotation angle (degrees)
@@ -28,8 +31,15 @@ layouts:
     mxc:   201                   # Number of X Nodes
     myc:   161                   # Number of Y Nodes
 
+# ─── Layouts ─────────────────────────────────────────────────────────────────────
+
+layouts:
+  deployment_area: "polygon"   # "polygon" | "path" | "grid" | "sector" | "custom"
   min_spacing_m: 39.0            # e.g., 1.5 × D (wec_length) = 1.5 × 26 m = 39 m
   canonical_order: "x_then_y"
+  exclusions:
+    radius_m: 20.0
+
   families:
     random_sparse:  2500
     grid_like:      2100
@@ -41,7 +51,6 @@ layouts:
 
 # --- Sea states ---
 sea_states:
-  source: "data/raw/scatter_diagram/scatter_diagram.csv"
   variables: ["Hs", "Tp", "Dir"]
   units:
     Hs: "m"
@@ -54,21 +63,6 @@ sea_states:
   sampling:
     method: "importance"     # importance sampling ponderado pela scatter diagram
     seed: 42
-
-# --- Layout sampling ---
-layouts:
-  domain_bounds:
-    x: [null, null]    # meters
-    y: [null, null]    # meters
-  canonical_order: "x_then_y"
-  families:
-    random_sparse: 2500
-    grid_like: 2100
-    row_aligned: 1800
-    diagonal: 1600
-    compact: 2000
-    dispersed: 2000
-  total_target: 15000
 
 # --- Wave Heigh Reduction in the Area of Interest (HRA) ---
 hra:
