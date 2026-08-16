@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 import numpy as np
 import pandas as pd
 import yaml
@@ -80,7 +81,7 @@ def draw_layout(ax, frame: pd.DataFrame, polygon: Polygon, spacing: float, title
             ax.plot([row.start_x, row.end_x], [row.start_y, row.end_y], color="tab:blue", lw=2)
     ax.scatter(centers[:, 0], centers[:, 1], s=20, color="tab:orange", zorder=3)
     for x0, y0 in centers:
-        ax.add_patch(plt.Circle((x0, y0), spacing / 2, color="tab:red", alpha=0.08))
+        ax.add_patch(Circle((x0, y0), spacing / 2, color="tab:red", alpha=0.08))
     ax.set_title(title)
     ax.set_aspect("equal", adjustable="box")
     ax.ticklabel_format(style="plain", axis="both", useOffset=False)
