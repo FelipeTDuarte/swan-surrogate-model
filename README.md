@@ -1,143 +1,105 @@
 # swan-surrogate-model
 
-Surrogate model for WEC array layout optimisation using SNL-SWAN.
-
-## Overview
-
-This repository implements a complete surrogate modelling pipeline that replaces
-SNL-SWAN simulations in the inner loop of a Genetic Algorithm (GA) optimiser for
-Wave Energy Converter (WEC) array layouts.
-
-The surrogate is trained on SNL-SWAN simulation data and provides near-real-time
-predictions of total absorbed power (`P_total`) and Hydrodynamic Relative
-Availability (HRA) for arbitrary WEC layouts and sea states, maintaining physical
-consistency and generalisability.
+Surrogate modelling for Wave Energy Converter (WEC) array-layout optimisation
+with SNL-SWAN. The objective is to replace expensive wave-model simulations in
+the inner loop of a Genetic Algorithm (GA) with near-real-time predictions.
 
 ## Modes
 
-| Mode | Target | Use case |
-|------|--------|----------|
-| **B** | Scalar `P_total` + HRA vector | Baseline GA integration, fast optimisation |
-| **C** | Full `Hs` field + `P_total` | Spatial analysis, flexible HRA post-processing |
+| Mode | Target | Intended use |
+|---|---|---|
+| B | Total absorbed power and HRA vector | Fast GA optimisation |
+| C | Full significant-wave-height (Hs) field and total power | Spatial analysis and flexible HRA post-processing |
 
-## Pipeline Stages
+## Workflow
 
-```
-01_generate_layouts   →  generate valid WEC layout candidates
-02_build_swan_inputs  →  render SNL-SWAN input files per case
-03_run_swan_batch     →  execute SNL-SWAN batch with resume support
-04_parse_outputs      →  extract P_total, Hs field, HRA; classify B/C
-05_build_dataset      →  freeze and version datasets B and C
-06_train_model        →  train surrogate (XGBoost baseline for B, field model for C)
-07_validate_model     →  validate ranking, top-10%, local sensitivity, dynamic recheck
-08_export_surrogate   →  package approved model as versioned inference bundle
-09_use_in_ga          →  integrate bundle into GA fitness evaluation loop
-```
-
-## Repository Structure
-
-```
-swan-surrogate-model/
-├── config/                    # problem.yaml, paths.yaml
-├── data/
-│   ├── raw/
-        ├── domain_geometry     # bathymetry, grid
-        └── scatter_diagrams    # scatter diagrams: tides, waves, winds
-│   ├── processed/              # candidates, parsed outputs, frozen datasets
-        ├── boundary_conditions # power.txt, physical/numerical parameters
-        └── initial_conditions  # processed files: water levels, wave input, wind input         
-│   └── archive/                # .mat fields, case archives
-├── runs/                       # per-case SNL-SWAN run directories
-├── models/
-│   ├── exported/               # versioned inference bundles
-│   └── splits/                 # frozen train/val/test splits by case_id
-├── reports/
-│   ├── logs/                   # per-stage operational logs
-│   ├── train_curves/           # training metric plots
-│   └── validation_plots/       # validation metric plots
-├── src/
-│   ├── config/                 # config loaders and validators
-│   ├── layouts/                # layout generation, geometry validation
-│   ├── swan_inputs/            # SNL-SWAN input file rendering
-│   ├── runner/                 # batch execution, resume, status tracking
-│   ├── parser/                 # output parsing, P_total, Hs field, HRA
-│   ├── dataset/                # dataset assembly, versioning, registry
-│   ├── training/               # model training, scalers, bundles
-│   ├── validation/             # holdout, ranking, dynamic recheck
-│   ├── export/                 # bundle packaging and manifest
-│   ├── ga_integration/         # surrogate fitness interface for GA
-│   └── utils/                  # logging, io helpers, physical checks
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── notebooks/                 # exploratory analysis and examples
-├── scripts/                   # CLI entry points
-├── docs/
-│   └── blueprints/            # full blueprint specification documents
-└── .github/workflows/         # CI configuration
+```mermaid
+flowchart LR
+  A[Raw geometry and wave data] --> B[01 Generate layouts]
+  A --> C[02 Sample sea states]
+  B --> D[03 Build SWAN inputs]
+  C --> D
+  D --> E[04 Run SNL-SWAN]
+  E --> F[05 Parse outputs]
+  F --> G[Dataset B or C]
+  G --> H[Train and validate]
+  H --> I[Export bundle]
+  I --> J[GA fitness evaluation]
 ```
 
-## Quick Start
+| Step | Current script | Main output | Status |
+|---|---|---|---|
+| 1 | `01_layout_generator.py` | `layouts_wecs_*.parquet` | Implemented |
+| 2 | `02_sea_states_sampling.py` | `sea_states.parquet` | Implemented |
+| 3 | `03_build_swan_inputs.py` | `runs/<run_id>/INPUT`, `run_index.parquet` | Implemented |
+| 4 | `04_run_swan_batch.py` | SWAN outputs, `run_status.parquet` | Implemented |
+| 5 | `05_parse_outputs.py` | `outputs.parquet` | Implemented prototype |
+| 6--9 | Dataset, training, validation, export and GA | versioned inference bundle | Architecture and CLI stubs |
 
-```bash
-# 1. Create environment
+The numbered files are the source of truth for the implemented path. Older
+scripts from `07_train_model.py` to `10_ga_integration.py` are an experimental
+field-model route, not the final package-style workflow.
+
+## Repository structure
+
+```text
+config/             Problem, paths and SWAN configuration
+data/raw/           Deployment geometry, scatter diagram, grid and bathymetry
+data/processed/     Layouts, sea states, case index, statuses and parsed targets
+runs/               One isolated SNL-SWAN directory per generated case
+reports/            Logs and quality/validation figures
+models/             Intended model splits and exported bundles
+scripts/            Command-line pipeline stages
+src/swan_surrogate/ Reusable configuration, geometry and GA package code
+tests/               Unit and integration tests
+docs/               Tutorial and blueprint specifications
+```
+
+## Quick start
+
+```powershell
+# Create environment
 conda env create -f environment.yml
 conda activate swan-surrogate
 
-# 2. Configure your problem
-cp config/problem.yaml.template config/problem.yaml
-cp config/paths.yaml.template config/paths.yaml
-# Edit both files for your case
+# Create project-specific config files and edit them
+Copy-Item config/problem.yaml.template config/problem.yaml
+Copy-Item config/paths.yaml.template config/paths.yaml
 
-# 3. Generate layouts
-python scripts/01_generate_layouts.py
+# Generate and inspect layouts
+python scripts/01_layout_generator.py
+python scripts/02_check_layouts.py
 
-# 4. Build SWAN inputs
-python scripts/02_build_swan_inputs.py
+# Sample sea states and construct a small SWAN test batch
+python scripts/02_sea_states_sampling.py
+python scripts/03_build_swan_inputs.py --max_runs 10
+python scripts/04_run_swan_batch.py --dry_run
 
-# 5. Run SWAN batch
-python scripts/03_run_swan_batch.py
-
-# 6. Parse outputs
-python scripts/04_parse_outputs.py
-
-# 7. Build dataset
-python scripts/05_build_dataset.py
-
-# 8. Train model
-python scripts/06_train_model.py --mode B
-
-# 9. Validate model
-python scripts/07_validate_model.py --mode B
-
-# 10. Export surrogate
-python scripts/08_export_surrogate.py --mode B
-
-# 11. Use in GA
-# See src/ga_integration/ for usage examples
+# Execute and parse SWAN
+python scripts/04_run_swan_batch.py --workers 4
+python scripts/05_parse_outputs.py --baseline path/to/baseline/Hs.mat
 ```
 
-## Physical Validity Rules
+## Physical validity rules
 
-- Geometric constraints are enforced **before** any surrogate inference
-- Invalid layouts are rejected, never penalised post-inference
-- Canonical WEC ordering is applied before feature vector construction
-- Fitness normalisation uses frozen min-max bounds from the training bundle
+- Validate geometric constraints before inference; do not apply a penalty after
+  an invalid layout has been inferred.
+- Apply a canonical WEC ordering before constructing model features.
+- Use frozen training bounds to normalise fitness.
+- Compute HRA against an equivalent no-WEC baseline field whenever possible.
 
 ## Documentation
 
-Full blueprint specifications are in `docs/blueprints/`.
+Read the complete [tutorial](docs/TUTORIAL.md) for configuration, quality
+checks, surrogate construction and GA-use guidance. Blueprint specifications,
+when provided, belong under `docs/blueprints/`.
 
 ## Requirements
 
-- Python 3.10+
-- PyTorch ≥ 2.0
-- scikit-learn ≥ 1.3
-- xgboost ≥ 2.0
-- numpy, scipy, pandas, pyyaml, netCDF4, jinja2
-
-See `environment.yml` and `pyproject.toml` for full dependency list.
+Python 3.10+, NumPy, SciPy, pandas, Shapely, PyYAML, Jinja2, netCDF4,
+scikit-learn, XGBoost, PyTorch and matplotlib. See `environment.yml` and
+`pyproject.toml` for the declared environment.
 
 ## License
 
-MIT License — see `LICENSE`.
+MIT. See `LICENSE`.

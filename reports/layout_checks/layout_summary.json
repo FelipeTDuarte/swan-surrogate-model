@@ -1,0 +1,9 @@
+{
+  "source": "data\\processed\\layouts_wecs_segments.parquet",
+  "layouts": 120,
+  "wec_rows": 3360,
+  "valid_layouts": 120,
+  "invalid_layouts": 0,
+  "minimum_required_spacing_m": 18.0,
+  "dataset_minimum_spacing_m": 20.765362224412073
+}

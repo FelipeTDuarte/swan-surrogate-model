@@ -10,9 +10,9 @@ wec_type: null
 wec_length_m: null            # length of the wec to from the power.txt
 
 # ─── Grid & Bottom─────────────────────────────────────────────────────────────────────
-grid_mode: "swan"    → reads swan grid file
-#          "delft3d" → reads delft3d grd file and convert to SWAN
-#          "build"   → builds a new regular CGRID regular from build_params
+# grid_mode: "swan"    reads a SWAN grid file
+#            "delft3d" reads a Delft3D grd file and converts it to SWAN
+#            "build"   builds a new regular CGRID from build_params
 
 # ─── Domain ─────────────────────────────────────────────────────────
 grid:
