@@ -123,8 +123,7 @@ def get_paths(start: Path | None = None) -> ProjectPaths:
     notebooks = root / "notebooks"
     scripts = root / "scripts"
     docs = root / "docs"
-    blueprints = docs / "blueprints"
-
+    
     return ProjectPaths(
         root=root,
         config=config,
@@ -145,5 +144,4 @@ def get_paths(start: Path | None = None) -> ProjectPaths:
         notebooks=notebooks,
         scripts=scripts,
         docs=docs,
-        blueprints=blueprints,
     )
