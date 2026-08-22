@@ -684,79 +684,18 @@ output:
   #   NGRID   'sname' <[xpn][ypn][alpn][xlenn][ylenn][mxn][myn] |
   #                    UNSTRUCTURED <TRIANGLE|EASYMESH> 'fname'>
   # ---------------------------------------------------------------------
-# locations:
-#   # --- FRAME: a regular output sub-grid ---
-#   - type: FRAME
-#     sname: "FRAME1"
-#     xpfr: 0.0
-#     ypfr: 0.0
-#     alpfr: 0.0
-#     xlenfr: 5000.0
-#     ylenfr: 3000.0
-#     mxfr: 250
-#     myfr: 150
-#
-#   # --- GROUP: a sub-set of the computational grid ---
-#   - type: GROUP
-#     sname: "GROUP1"
-#     ix1: 0
-#     ix2: 249
-#     iy1: 0
-#     iy2: 149
-#
-#   # --- CURVE: an output curve made of one or more straight segments ---
-#   - type: CURVE
-#     sname: "CURVE1"
-#     xp1: 0.0
-#     yp1: 0.0
-#     segments:                     # one or more extra points along the curve
-#       - {int: 50, xp: 1000.0, yp: 500.0}
-#       - {int: 50, xp: 2000.0, yp: 1000.0}
-#
-#   # --- RAY: a ray used together with ISOLINE to trace a depth contour ---
-#   - type: RAY
-#     rname: "RAY1"
-#     xp1: 0.0
-#     yp1: 0.0
-#     xq1: 100.0
-#     yq1: 100.0
-#     segments:                     # optional additional ray segments
-#       - {int: 10, xp: 500.0, yp: 500.0, xq: 600.0, yq: 600.0}
-#
-#   # --- ISOLINE: a curve following a depth contour, built from a RAY ---
-#   - type: ISOLINE
-#     sname: "ISOLINE1"
-#     rname: "RAY1"                 # must match a RAY defined above
-#     kind: DEPTH                   # DEPTH | BOTTOM
-#     dep: 10.0
-#
-#   # --- POINTS: an explicit set of output points, inline ---
-#   - type: POINTS
-#     sname: "POINTS1"
-#     points:
-#       - {xp: 100.0, yp: 200.0}
-#       - {xp: 300.0, yp: 400.0}
-#
-#   # --- POINTS: read from an external file instead of inline points ---
-#   - type: POINTS
-#     sname: "POINTS2"
-#     file: points.txt
-#
-#   # --- NGRID: an unstructured or regular nested output grid ---
-#   - type: NGRID
-#     sname: "NGRID1"
-#     mode: REGULAR                 # REGULAR | UNSTRUCTURED
-#     # --- used if mode: REGULAR ---
-#     xpn: 0.0
-#     ypn: 0.0
-#     alpn: 0.0
-#     xlenn: 5000.0
-#     ylenn: 3000.0
-#     mxn: 250
-#     myn: 150
-#     # --- used if mode: UNSTRUCTURED ---
-#     # mesher: TRIANGLE            # TRIANGLE | EASYMESH
-#     # file: mesh.node
+  locations:
+    # Full-domain output frame — matches the computational grid exactly.
+    # Resolution: same as cgrid (mxfr x myfr = 250 x 150 cells).
+    - type: FRAME
+      sname: "DOMAIN"
+      xpfr: 0.0
+      ypfr: 0.0
+      alpfr: 0.0
+      xlenfr: 5000.0
+      ylenfr: 3000.0
+      mxfr: 250
+      myfr: 150
 
   # ---------------------------------------------------------------------
   # QUANTITY — customize units, exponential notation thresholds, exception
@@ -803,51 +742,18 @@ output:
   #           (MONth) (ESCAle) (COMPress) (OUTput [tbeg][delt] SEC|MIN|HR|DAY)
   #   NESTout 'sname' 'fname' (OUTput [tbeg][delt] SEC|MIN|HR|DAY)
   # ---------------------------------------------------------------------
-# requests:
-#   # --- BLOCK: gridded output over a FRAME/GROUP/NGRID location ---
-#   - type: BLOCK
-#     location: "FRAME1"            # must match a locations[].sname above
-#     header: true                  # true -> HEADER, false -> NOHEADER
-#     file: out_block.mat
-#     idla: 3                       # optional -> adds LAY-OUT [idla]
-#     quantities: [HSIGN, TM01, DIR, DEPTH]   # any of the BLOCK keyword list
-#     unit: m                       # optional unit override
-#     nonstationary: true
-#     tbeg: "20260101.000000"       # required if nonstationary: true
-#     delt: 1
-#     delt_unit: HR                 # SEC | MIN | HR | DAY (default HR)
-#
-#   # --- TABLE: point/curve output in tabular form ---
-#   - type: TABLE
-#     location: "POINTS1"
-#     header: HEADER                # HEADER | NOHEADER | INDEXED
-#     file: out_table.tbl
-#     quantities: [HSIGN, RTP, DIR, DEPTH, WATLEV]
-#     nonstationary: false
-#
-#   # --- SPECOUT: spectral output ---
-#   - type: SPECOUT
-#     location: "POINTS1"
-#     spec_dim: SPEC2D               # SPEC1D | SPEC2D
-#     spec_coord: ABS                # ABS | REL
-#     spec_form: S                   # S (SWAN ASCII) | L (long/binary)
-#     file: out_spec.sp2
-#     month: false                   # true -> adds MONTH
-#     escale: false                  # true -> adds ESCALE
-#     compress: false                # true -> adds COMPRESS
-#     nonstationary: true
-#     tbeg: "20260101.000000"
-#     delt: 1
-#     delt_unit: HR
-#
-#   # --- NESTOUT: boundary spectra for a nested run ---
-#   - type: NESTOUT
-#     location: "CURVE1"
-#     file: nest_boundary.sp2
-#     nonstationary: true
-#     tbeg: "20260101.000000"
-#     delt: 1
-#     delt_unit: HR
+  requests:
+    # Gridded BLOCK output over the full domain.
+    # Produces: Hs, mean period (TM01), peak direction (PDIR),
+    #           mean wave direction (WDIR), near-bottom orbital velocity (UBOT).
+    # These five fields are the primary inputs for the WEC surrogate model.
+    - type: BLOCK
+      location: "DOMAIN"
+      header: true
+      file: "output.mat"
+      idla: 3
+      quantities: [HSIGN, TM01, PDIR, WDIR, UBOT]
+      nonstationary: false
 
 # ==============================================================================
 # TEST — diagnostic/test output during computation
