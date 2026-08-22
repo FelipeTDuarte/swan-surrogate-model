@@ -6,8 +6,8 @@ Features
 --------
 - Parallel execution via concurrent.futures.ProcessPoolExecutor
 - Retry logic (up to 3 attempts per run)
-- Progress logging to reports/logs/swan_batch.log
-- Writes a status parquet: data/processed/run_status.parquet
+- Progress logging to reports/<experiment>/swan_batch.log
+- Writes a status parquet: data/processed/<experiment>/run_status.parquet
   columns: run_id, status (ok|failed|skipped), wall_time_s, attempts
 """
 
@@ -20,6 +20,9 @@ from pathlib import Path
 
 import pandas as pd
 import yaml
+
+from swan_surrogate.utils import load_current_experiment
+from swan_surrogate.utils.paths import get_paths
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +54,6 @@ def run_one(run_dir: Path, swan_exec: str, n_threads: int, attempt: int = 1) -> 
         if proc.returncode == 0:
             result["status"] = "ok"
         else:
-            # Write stderr for diagnosis
             (run_dir / "stderr.log").write_text(proc.stderr, encoding="utf-8")
             result["status"] = "failed"
     except subprocess.TimeoutExpired:
@@ -74,30 +76,29 @@ def main():
     parser = argparse.ArgumentParser(description="Run SNL-SWAN batch")
     parser.add_argument("--problem",  default="config/problem.yaml")
     parser.add_argument("--paths",    default="config/paths.yaml")
-    parser.add_argument("--workers",  type=int, default=None,
-                        help="Overrides parallelization.n_workers from problem.yaml")
-    parser.add_argument("--threads",  type=int, default=None,
-                        help="Overrides parallelization.n_threads_per_worker from problem.yaml")
-    parser.add_argument("--rerun_failed", action="store_true",
-                        help="Re-run only previously failed runs")
-    parser.add_argument("--dry_run",  action="store_true",
-                        help="List runs without executing")
+    parser.add_argument("--workers",  type=int, default=None)
+    parser.add_argument("--threads",  type=int, default=None)
+    parser.add_argument("--rerun_failed", action="store_true")
+    parser.add_argument("--dry_run",  action="store_true")
     args = parser.parse_args()
 
-    cfg  = yaml.safe_load(Path(args.problem).read_text())
-    pths = yaml.safe_load(Path(args.paths).read_text())
+    cfg      = yaml.safe_load(Path(args.problem).read_text())
+    pths_cfg = yaml.safe_load(Path(args.paths).read_text())
 
-    par_cfg = cfg.get("parallelization", {})
+    # ── Experiment tracking ──
+    exp = load_current_experiment(get_paths())
+    log.info("Experiment: %s", exp.slug)
+
+    par_cfg   = cfg.get("parallelization", {})
     n_workers = args.workers if args.workers is not None else int(par_cfg.get("n_workers", 1))
     n_threads = args.threads if args.threads is not None else int(par_cfg.get("n_threads_per_worker", 1))
 
-    runs_dir    = Path(pths["runs_dir"])
-    processed   = Path(pths["processed_dir"])
-    logs_dir    = Path(pths["logs_dir"])
+    runs_dir  = exp.runs
+    processed = exp.processed
+    logs_dir  = exp.reports
     logs_dir.mkdir(parents=True, exist_ok=True)
-    swan_exec   = str(Path(pths["swan_executable"]).resolve())
+    swan_exec = str(Path(pths_cfg["swan_executable"]).resolve())
 
-    # Set up file log handler
     fh = logging.FileHandler(logs_dir / "swan_batch.log")
     fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
     log.addHandler(fh)
@@ -113,7 +114,7 @@ def main():
     if args.rerun_failed:
         run_dirs = [d for d in run_dirs if d.name not in existing_ok]
 
-    log.info("Total runs to execute: %d  (workers=%d) (threads=%d)" , len(run_dirs), n_workers, n_threads)
+    log.info("Total runs to execute: %d  (workers=%d) (threads=%d)", len(run_dirs), n_workers, n_threads)
 
     if args.dry_run:
         for d in run_dirs[:10]:
@@ -128,7 +129,7 @@ def main():
             res = fut.result()
             results.append(res)
             completed += 1
-            if 100*completed % len(run_dirs) == 0:
+            if 100 * completed % len(run_dirs) == 0:
                 n_ok = sum(1 for r in results if r["status"] == "ok")
                 log.info("Progress: %d / %d   ok=%d", completed, len(run_dirs), n_ok)
 

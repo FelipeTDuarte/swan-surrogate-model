@@ -4,9 +4,8 @@ Evaluate the trained surrogate on the test split.
 
 Outputs
 -------
-- reports/validation_metrics.json   — RMSE, MAE, R² per target
-- reports/validation_scatter.csv    — predicted vs true for all test samples
-- reports/logs/validation.log
+- reports/<experiment>/validation_metrics.json   — RMSE, MAE, R² per target
+- reports/<experiment>/validation_scatter.csv    — predicted vs true for all test samples
 """
 
 import argparse
@@ -20,6 +19,9 @@ import torch
 import yaml
 
 from swan_surrogate.training import WECDataset, FNOSurrogate
+from swan_surrogate.utils import load_current_experiment
+from swan_surrogate.utils.paths import get_paths
+from swan_surrogate.utils.scripts_utils import domain_bounds_cached
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -61,12 +63,16 @@ def main():
     parser.add_argument("--batch_size", type=int, default=64)
     args = parser.parse_args()
 
-    cfg  = yaml.safe_load(Path(args.problem).read_text())
-    pths = yaml.safe_load(Path(args.paths).read_text())
+    cfg      = yaml.safe_load(Path(args.problem).read_text())
+    pths_cfg = yaml.safe_load(Path(args.paths).read_text())
 
-    processed  = Path(pths["processed_dir"])
-    models_dir = Path(pths["models_dir"])
-    reports    = Path(pths["reports_dir"])
+    # ── Experiment tracking ──
+    exp = load_current_experiment(get_paths())
+    log.info("Experiment: %s", exp.slug)
+
+    processed  = exp.processed
+    models_dir = exp.models
+    reports    = exp.reports
     reports.mkdir(parents=True, exist_ok=True)
 
     ckpt_path = Path(args.checkpoint) if args.checkpoint else models_dir / "best_model.pt"
@@ -76,8 +82,7 @@ def main():
     df_test = df[df["split"] == "test"].reset_index(drop=True)
     log.info("Test set: %d samples", len(df_test))
 
-    from swan_surrogate.utils.scripts_utils import domain_bounds_cached
-    bounds = domain_bounds_cached(Path(pths["grid_file"]))
+    bounds  = domain_bounds_cached(Path(pths_cfg["grid_file"]))
     ds_test = WECDataset(df_test, bounds)
     loader  = torch.utils.data.DataLoader(
         ds_test, batch_size=args.batch_size, shuffle=False, num_workers=2)

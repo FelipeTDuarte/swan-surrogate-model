@@ -16,8 +16,8 @@ Training
 - Loss: weighted MSE (importance weight from sea-state sampler)
 - Scheduler: OneCycleLR
 - Early stopping: patience=20 epochs on val loss
-- Checkpoints: models/best_model.pt  + models/last_model.pt
-- Metrics logged to reports/logs/training_metrics.csv
+- Checkpoints: models/<experiment>/best_model.pt  + models/<experiment>/last_model.pt
+- Metrics logged to reports/<experiment>/training_metrics.csv
 """
 
 import argparse
@@ -31,16 +31,14 @@ import yaml
 from torch.utils.data import DataLoader
 
 from swan_surrogate.training import WECDataset, FNOSurrogate
-from swan_surrogate.utils import domain_bounds_cached
+from swan_surrogate.utils import domain_bounds_cached, load_current_experiment
+from swan_surrogate.utils.paths import get_paths
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Training loop
-# ──────────────────────────────────────────────────────────────────────────────
 
 def weighted_mse(pred: torch.Tensor, target: torch.Tensor,
                  weight: torch.Tensor) -> torch.Tensor:
@@ -86,20 +84,21 @@ def main():
     parser.add_argument("--grid_w",     type=int, default=64)
     args = parser.parse_args()
 
-    cfg  = yaml.safe_load(Path(args.problem).read_text())
-    pths = yaml.safe_load(Path(args.paths).read_text())
+    cfg      = yaml.safe_load(Path(args.problem).read_text())
+    pths_cfg = yaml.safe_load(Path(args.paths).read_text())
 
-    processed  = Path(pths["processed_dir"])
-    models_dir = Path(pths["models_dir"])
-    logs_dir   = Path(pths["logs_dir"])
+    # ── Experiment tracking ──
+    exp = load_current_experiment(get_paths())
+    log.info("Experiment: %s", exp.slug)
+
+    processed  = exp.processed
+    models_dir = exp.models
+    logs_dir   = exp.reports
     models_dir.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_parquet(processed / "dataset.parquet")
-
-    # Infer domain bounds from grid file at runtime
-    
-    bounds = domain_bounds_cached(Path(pths["grid_file"]))
+    bounds = domain_bounds_cached(Path(pths_cfg["grid_file"]))
 
     df_train = df[df["split"] == "train"]
     df_val   = df[df["split"] == "val"]

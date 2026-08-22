@@ -81,6 +81,9 @@ htmlcov/
 config/problem.yaml
 config/paths.yaml
 
+# Experiment lock files — local state, never committed
+.experiments/
+
 # Misc
 *.bak
 *.tmp

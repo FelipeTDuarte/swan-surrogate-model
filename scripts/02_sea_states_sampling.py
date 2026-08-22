@@ -11,7 +11,7 @@ Strategy
    - weight = occurrence_frequency / proposal_density
    - This ensures rare but energetic states are represented.
 5. Add extreme-event supplement: top 1% Hs states sampled uniformly.
-6. Save to data/processed/sea_states.parquet with weights column.
+6. Save to data/processed/<experiment>/sea_states.parquet with weights column.
 """
 
 import argparse
@@ -23,13 +23,15 @@ import pandas as pd
 import yaml
 from scipy.stats import gaussian_kde
 
+from swan_surrogate.utils import load_current_experiment
+from swan_surrogate.utils.paths import get_paths
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 
 def load_wave_data(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
-    # Normalise column names — accept any capitalisation
     df.columns = [c.strip().lower() for c in df.columns]
     rename = {}
     for col in df.columns:
@@ -66,14 +68,12 @@ def build_scatter_bins(df: pd.DataFrame,
     )
     freq = H / H.sum()
 
-    # Grid of bin centres
     hs_c  = 0.5 * (hs_edges[:-1]  + hs_edges[1:])
     tp_c  = 0.5 * (tp_edges[:-1]  + tp_edges[1:])
     dir_c = 0.5 * (dir_edges[:-1] + dir_edges[1:])
     gg = np.array(np.meshgrid(hs_c, tp_c, dir_c, indexing="ij")).reshape(3, -1).T
     ff = freq.ravel()
 
-    # Keep only populated bins
     mask = ff > 0
     return gg[mask], ff[mask]
 
@@ -92,7 +92,6 @@ def importance_sample(df: pd.DataFrame,
     log.info("Fitting joint KDE on (Hs, Tp, sin_Dir, cos_Dir) …")
     sin_d, cos_d = circular_encode(df["Dir"].values)
     X = np.column_stack([df["Hs"].values, df["Tp"].values, sin_d, cos_d])
-    # Subsample for KDE speed if dataset is very large
     if len(X) > 50_000:
         idx = rng.choice(len(X), 50_000, replace=False)
         X_kde = X[idx]
@@ -100,25 +99,21 @@ def importance_sample(df: pd.DataFrame,
         X_kde = X
     kde = gaussian_kde(X_kde.T, bw_method="scott")
 
-    # --- Scatter-diagram bins as proposal candidates ---
     grid_pts, freqs = build_scatter_bins(df)
     sin_g, cos_g = circular_encode(grid_pts[:, 2])
     X_grid = np.column_stack([grid_pts[:, 0], grid_pts[:, 1], sin_g, cos_g])
     proposal_density = kde(X_grid.T)
     proposal_density = np.maximum(proposal_density, 1e-12)
 
-    # Importance weights: proportional to occurrence / proposal density
     weights = freqs / proposal_density
     weights /= weights.sum()
 
     n_main    = int(n_samples * (1 - extreme_frac))
     n_extreme = n_samples - n_main
 
-    # Main importance-weighted draw from scatter bins
     chosen_bins = rng.choice(len(grid_pts), size=n_main, replace=True, p=weights)
     main_pts    = grid_pts[chosen_bins]
 
-    # Jitter within bin widths (half-bin size)
     bin_half = np.array([
         (df["Hs"].max()  - df["Hs"].min())  / (2 * 20),
         (df["Tp"].max()  - df["Tp"].min())  / (2 * 20),
@@ -126,7 +121,6 @@ def importance_sample(df: pd.DataFrame,
     ])
     main_pts += rng.uniform(-bin_half, bin_half, main_pts.shape)
 
-    # --- Extreme supplement ---
     hs_99 = np.percentile(df["Hs"].values, 99)
     extreme_mask = df["Hs"].values >= hs_99
     extreme_pool = df[extreme_mask][["Hs", "Tp", "Dir"]].values
@@ -135,7 +129,6 @@ def importance_sample(df: pd.DataFrame,
 
     all_pts = np.vstack([main_pts, extreme_pts])
 
-    # Re-compute occurrence weight for each sampled state via KDE
     sin_a, cos_a = circular_encode(all_pts[:, 2])
     X_all = np.column_stack([all_pts[:, 0], all_pts[:, 1], sin_a, cos_a])
     occurrence_weight = kde(X_all.T)
@@ -174,12 +167,16 @@ def main():
     args = parser.parse_args()
 
     cfg  = yaml.safe_load(Path(args.problem).read_text())
-    pths = yaml.safe_load(Path(args.paths).read_text())
+    pths_cfg = yaml.safe_load(Path(args.paths).read_text())
+
+    # ── Experiment tracking: load slug written by 01 ──
+    exp = load_current_experiment(get_paths())
+    log.info("Experiment: %s", exp.slug)
 
     rng = np.random.default_rng(cfg["training"]["random_seed"])
 
-    csv_path  = Path(pths["scatter_csv"])
-    out_dir   = Path(pths["processed_dir"])
+    csv_path = Path(pths_cfg["scatter_csv"])
+    out_dir  = exp.processed
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df_raw = load_wave_data(csv_path)
@@ -188,7 +185,6 @@ def main():
     df_raw = df_raw[df_raw["Dir"] > -999].reset_index(drop=True)
     log.info("Removed %d records with sentinel Dir values (-9999.9)", n_before - len(df_raw))
 
-    # Default n_samples: one sea state per layout (total_target in problem.yaml)
     n_ss = args.n_samples or cfg["layouts"]["total_target"]
     log.info("Sampling %d sea states …", n_ss)
 

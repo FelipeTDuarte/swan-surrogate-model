@@ -10,6 +10,11 @@ as flat CSV/parquet tables. It supports two export modes:
 - segments: full WEC segment geometry for line-based models
 - centers: only WEC centers for models that use point representations
 
+Experiment tracking
+-------------------
+This is the pipeline entry-point: it calls ``start_new_experiment`` once,
+creating the mirrored experiment directories and writing the lock file
+that every downstream script (02-10) will read via ``load_current_experiment``.
 """
 
 from __future__ import annotations
@@ -28,6 +33,9 @@ from shapely.affinity import translate
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 from shapely.validation import make_valid
+
+from swan_surrogate.utils import start_new_experiment
+from swan_surrogate.utils.paths import get_paths
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -608,7 +616,7 @@ def to_swan_obstacle_lines(wec_df: pd.DataFrame, transmission: float = 0.0) -> d
         lines = []
         for _, row in group.sort_values("wec_id").iterrows():
             lines.append(
-                f"OBST	TRANS	{transmission:g}	LIN "
+                f"OBST\tTRANS\t{transmission:g}\tLIN "
                 f"{row.start_x:.3f} {row.start_y:.3f} {row.end_x:.3f} {row.end_y:.3f}"
             )
         grouped[int(layout_id)] = lines
@@ -759,7 +767,7 @@ def load_deploy_area(problem_cfg: dict[str, Any], paths_cfg: dict[str, Any]) -> 
 
 
 def main() -> None:
-    """CLI entry point."""
+    """CLI entry point — pipeline entry-point, starts a new experiment."""
     parser = argparse.ArgumentParser(description="Generate WEC layouts for surrogate datasets")
     parser.add_argument("--problem", default="config/problem.yaml", help="Path to problem.yaml")
     parser.add_argument("--paths", default="config/paths.yaml", help="Path to paths.yaml")
@@ -779,6 +787,11 @@ def main() -> None:
 
     problem_cfg = load_yaml(Path(args.problem))
     paths_cfg = load_yaml(Path(args.paths))
+
+    # ── Experiment tracking: resolve slug, create mirrored dirs, write lock ──
+    pths = get_paths()
+    exp = start_new_experiment(pths, problem_id=problem_cfg["problem_id"])
+    log.info("Experiment started: %s", exp.slug)
 
     export_mode = args.export_mode
     if export_mode is None:
@@ -804,11 +817,11 @@ def main() -> None:
         export_mode=export_mode,
     )
 
-    output_dir = Path(paths_cfg.get("processed_dir", "data/processed"))
+    # Use experiment-scoped output dir instead of raw paths_cfg value
     saved = save_layout_dataset(
         wec_df=wec_df,
         summary_df=summary_df,
-        output_dir=output_dir,
+        output_dir=exp.processed,
         export_mode=export_mode,
         prefix=args.prefix,
     )
