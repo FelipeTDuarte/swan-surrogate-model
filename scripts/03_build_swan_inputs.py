@@ -12,8 +12,8 @@ Configuration is split by responsibility:
                            anything the user's swan.yaml does not set
 
 Reads:
-- data/processed/layouts_wecs_segments.parquet (or layouts.parquet, legacy)
-- data/processed/sea_states.parquet
+- data/processed/<experiment>/layouts_wecs_segments.parquet
+- data/processed/<experiment>/sea_states.parquet
 - config/problem.yaml
 - config/swan.yaml
 - config/paths.yaml
@@ -21,9 +21,9 @@ Reads:
 - docs/templates/INPUT.swn.j2 (Jinja2 template)
 
 Writes:
-- runs/<run_id>/INPUT   (SWAN input deck)
-- runs/<run_id>/meta.json
-- data/processed/run_index.parquet
+- runs/<experiment>/<run_id>/INPUT.swn
+- runs/<experiment>/<run_id>/meta.json
+- data/processed/<experiment>/run_index.parquet
 """
 
 from __future__ import annotations
@@ -39,6 +39,9 @@ import numpy as np
 import pandas as pd
 import yaml
 from jinja2 import Environment, FileSystemLoader
+
+from swan_surrogate.utils import load_current_experiment
+from swan_surrogate.utils.paths import get_paths
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -171,7 +174,12 @@ def build_wec_block(layout_row: pd.Series, swan_cfg: dict[str, Any]) -> str:
     # -----------------------------------------------------------------------------
 
 def build_grid_context(swan_cfg: dict[str, Any], pths: dict[str, Any]) -> dict[str, Any]:
-    """Build CGRID/INPGRID context from swan.yaml (merged with defaults)."""
+    """Build CGRID/INPGRID context from swan.yaml (merged with defaults).
+
+    Note: only the *filename* (stem+suffix) is injected into the INPUT
+    template. The actual file is copied to the temp execution directory
+    by 04_run_swan_batch.py, so SWAN will find it via the relative name.
+    """
     grid_cfg = swan_cfg["grid"]
     grid_type = grid_cfg["type"]
 
@@ -203,26 +211,7 @@ def build_grid_context(swan_cfg: dict[str, Any], pths: dict[str, Any]) -> dict[s
     return ctx
 
 def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
-    """Build every optional forcing-field context for the INPUT deck.
-
-    swan_cfg["input_fields"] is a single list mixing two kinds of entries:
-
-    - Spatially varying fields (kind in VALID_INPGRID_KINDS): rendered as
-      INPGRID/READINP via the Jinja `inpgrid_block` macro (wind, current,
-      water level, friction, plants, turbulence, mud, ice, spectral
-      partitions). Bathymetry (BOTTOM) is structural and handled
-      separately in build_grid_context.
-
-    - Uniform scalar shortcuts (kind: WIND or kind: ICE): rendered as the
-      standalone WIND [vel][dir] or ICE [aice][hice] command. These are
-      dedicated pseudo-kinds distinct from WI/WX/WY and AICE/HICE, which
-      always mean a spatial INPGRID field — per swan.edt, only wind and
-      ice have a documented uniform command, so kind: WIND / kind: ICE
-      unambiguously select that path with no extra flag needed.
-
-    Everything here is optional: an empty/absent input_fields list simply
-    produces no extra SWAN commands beyond the structural BOTTOM block.
-    """
+    """Build every optional forcing-field context for the INPUT deck."""
     VALID_INPGRID_KINDS = {
     "WLEV", "CUR", "VX", "VY", "FR", "WI", "WX", "WY",
     "NPLA", "TURB", "MUDL", "AICE", "HICE", "HSS", "TSS", "DSS",
@@ -238,7 +227,7 @@ def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
 
     grid_fields = []
     uniform_ctx: dict[str, Any] = {}
-    seen_uniform_kind: dict[str, str] = {}  # command -> kind that set it
+    seen_uniform_kind: dict[str, str] = {}
 
     for field_cfg in raw_fields:
         if "kind" not in field_cfg:
@@ -250,18 +239,14 @@ def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
             command, param_names = UNIFORM_KIND_COMMANDS[kind]
             if command in seen_uniform_kind:
                 raise ValueError(
-                    f"Duplicate uniform '{kind}' entry. Only one kind: "
-                    f"{kind} entry is allowed per run."
+                    f"Duplicate uniform '{kind}' entry."
                 )
             seen_uniform_kind[command] = kind
-
             missing = [p for p in param_names if p not in field_cfg]
             if missing:
                 raise ValueError(
-                    f"kind: {kind} entry is missing required parameter(s) "
-                    f"{missing} for the {command} command."
+                    f"kind: {kind} entry is missing required parameter(s) {missing}."
                 )
-
             if command == "WIND":
                 uniform_ctx["wind_vel"] = field_cfg["vel"]
                 uniform_ctx["wind_dir"] = field_cfg["dir"]
@@ -272,8 +257,7 @@ def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
         elif kind in VALID_INPGRID_KINDS:
             if "file" not in field_cfg:
                 raise ValueError(
-                    f"input_fields entry with kind: {kind} needs 'file'. "
-                    f"Got: {field_cfg}"
+                    f"input_fields entry with kind: {kind} needs 'file'. Got: {field_cfg}"
                 )
             resolved = dict(field_cfg)
             resolved["kind"] = kind
@@ -283,8 +267,7 @@ def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
         else:
             raise ValueError(
                 f"Unknown input_fields kind '{kind}'. Valid kinds: "
-                f"{sorted(VALID_INPGRID_KINDS)} for spatial fields, or "
-                f"{sorted(UNIFORM_KIND_COMMANDS)} for uniform scalar forcing."
+                f"{sorted(VALID_INPGRID_KINDS)} or {sorted(UNIFORM_KIND_COMMANDS)}."
             )
 
     ctx: dict[str, Any] = dict(uniform_ctx)
@@ -293,21 +276,7 @@ def build_optional_fields_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
     return ctx
 
 def build_boundary_context(swan_cfg: dict[str, Any], ss_row: pd.Series) -> dict[str, Any]:
-    """Build the BOUN/BOUNDSPEC/BOUNDNEST context.
-
-    Supports:
-    - "side_par"    -> BOUN SHAPE ... + BOUN SIDE ... CON|VAR PAR (default,
-                       single side or multiple sides via boundary.sides)
-    - "segment_par" -> BOUNDSPEC SEGMENT XY <points> CON|VAR PAR
-    - "segment_file"-> BOUNDSPEC SEGMENT XY <points> UNI|VAR FILE 'fname'
-    - "nest"        -> BOUNDNEST1 NEST 'fname' CLOSED|OPEN
-    - "wamnest"     -> BOUNDNEST2 WAMNEST 'fname' ...
-    - "ww3nest"     -> BOUNDNEST3 WW3 'fname' ...
-
-    Every spectral-shape parameter (shape, gamma, sigfr, d, peak_mean,
-    dspr_mode) is optional and falls back to SWAN's own default via the
-    template's `default(..., true)` filters if omitted here.
-    """
+    """Build the BOUN/BOUNDSPEC/BOUNDNEST context."""
     boundary_cfg = swan_cfg["boundary"]
     mode = boundary_cfg["mode"]
 
@@ -359,7 +328,7 @@ def build_boundary_context(swan_cfg: dict[str, Any], ss_row: pd.Series) -> dict[
             ctx["xgc"] = boundary_cfg["xgc"]
             ctx["ygc"] = boundary_cfg["ygc"]
 
-    else:  # side_par (default): single side, or multiple via boundary.sides
+    else:  # side_par (default)
         sides_cfg = boundary_cfg.get("sides")
         if sides_cfg:
             ctx["boundary_sides"] = sides_cfg
@@ -368,10 +337,6 @@ def build_boundary_context(swan_cfg: dict[str, Any], ss_row: pd.Series) -> dict[
             ctx["boundary_side"] = boundary_cfg.get("side", "W")
             ctx["boundary_rotation"] = boundary_cfg.get("rotation", "CCW")
             ctx["boundary_kind"] = boundary_cfg.get("kind", "CON")
-            # Only add optional spectral-shape / side parameters if the
-            # user actually set them — omitting the key (instead of
-            # setting it to None) lets the template's `is defined` checks
-            # and `default(..., true)` filters work correctly.
             for key in ("jonswap_gamma", "sigfr", "d", "peak_mean", "dspr_mode", "dspr"):
                 if boundary_cfg.get(key) is not None:
                     ctx[key] = boundary_cfg[key]
@@ -381,20 +346,7 @@ def build_boundary_context(swan_cfg: dict[str, Any], ss_row: pd.Series) -> dict[
     return ctx
 
 def build_physics_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
-    """Build the full PHYSICS context (swan.edt): GEN1/GEN2/GEN3, SSWELL,
-    NEGATINP, WCAP, QUADRUPL, BREAK, FRICTION, TRIAD, VEGETATION,
-    TURBULENCE, MUD, SICE, OFF <process>, LIMITER, DIFFRAC.
-
-    swan_cfg["physics"] mirrors the swan.edt command tree closely: each
-    sub-command has its own dict of parameters, and every parameter is
-    optional — anything left unset is omitted from the context, so the
-    template's `is defined` checks skip that piece of the command and
-    SWAN falls back to its own internal default.
-
-    Backward compatible with the previous flat format
-    (physics.gen3: "WESTHUYSEN", physics.wcap: "KOMEN", physics.breaking_alpha,
-    physics.friction_cfjon, physics.diffraction) used by earlier swan.yaml files.
-    """
+    """Build the full PHYSICS context (swan.edt)."""
     phys = swan_cfg.get("physics", {})
     ctx: dict[str, Any] = {}
 
@@ -515,7 +467,7 @@ def build_physics_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
             or phys.get("limiter_ursell") is not None or phys.get("limiter_qb") is not None:
         ctx["limiter_ursell"] = limiter.get("ursell", phys.get("limiter_ursell", 10))
         ctx["limiter_qb"] = limiter.get("qb", phys.get("limiter_qb", 1))
-        
+
     surfbeat = phys.get("surfbeat", {})
     if surfbeat.get("df") is not None:
         ctx["surfbeat_df"] = surfbeat["df"]
@@ -556,14 +508,7 @@ def build_physics_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
     return ctx
 
 def build_numerics_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
-    """Build the NUMERICS context (termination + iteration + optional sub-commands
-    DIRIMPL, REFRLIM, SIGIMPL/SIGEXPL, CTHETA, CSIGMA, numeric SETUP).
-
-    swan_cfg["numerics"] mirrors the swan.edt command tree; every field is
-    optional and anything left unset is omitted from the context, letting
-    the template's `is defined` checks skip that piece and SWAN fall back
-    to its own internal default.
-    """
+    """Build the NUMERICS context (termination + iteration + sub-commands)."""
     numeric = swan_cfg.get("numerics", {})
     ctx: dict[str, Any] = {}
     if numeric.get("termination") is not None or numeric.get("iteration_mode") is not None:
@@ -620,16 +565,7 @@ def build_numerics_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
     return ctx
 
 def build_output_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
-    
-    """Build the OUTPUT context (swan.edt): FRAME/GROUP/CURVE/RAY/ISOLINE/
-    POINTS/NGRID locations, QUANTITY overrides, OUTPUT OPTIONS, and output
-    requests (BLOCK/TABLE/SPECOUT/NESTOUT).
-
-    swan_cfg["output"] mirrors the swan.edt command tree; every sub-key is
-    optional. Locations are referenced by name ("location:") from the
-    output requests, so it's the caller's responsibility to keep 'sname'/
-    'rname' values consistent between the two lists.
-    """
+    """Build the OUTPUT context (FRAME/GROUP/BLOCK/TABLE/SPECOUT/NESTOUT)."""
     out_cfg = swan_cfg.get("output", {})
     ctx: dict[str, Any] = {}
 
@@ -640,16 +576,14 @@ def build_output_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
             ltype = str(loc.get("type", "")).upper()
             if ltype not in {"FRAME", "GROUP", "CURVE", "RAY", "ISOLINE", "POINTS", "NGRID"}:
                 raise ValueError(f"output.locations[{i}]: unknown type '{ltype}'.")
-
             if ltype in {"FRAME", "GROUP", "CURVE", "ISOLINE", "POINTS", "NGRID"} and not loc.get("sname"):
                 raise ValueError(f"output.locations[{i}] ({ltype}) needs 'sname'.")
             if ltype == "RAY" and not loc.get("rname"):
                 raise ValueError(f"output.locations[{i}] (RAY) needs 'rname'.")
             if ltype == "ISOLINE" and not loc.get("rname"):
-                raise ValueError(f"output.locations[{i}] (ISOLINE) needs 'rname' referencing a RAY.")
+                raise ValueError(f"output.locations[{i}] (ISOLINE) needs 'rname'.")
             if ltype == "POINTS" and not loc.get("points") and not loc.get("file"):
                 raise ValueError(f"output.locations[{i}] (POINTS) needs 'points' or 'file'.")
-
             resolved_locs.append({**loc, "type": ltype})
         ctx["locations"] = resolved_locs
 
@@ -687,15 +621,7 @@ def build_output_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
     return ctx
 
 def build_test_compute_context(swan_cfg: dict[str, Any]) -> dict[str, Any]:
-    """Build the TEST / COMPUTE / HOTFILE context (swan.edt).
-
-    TEST and HOTFILE are optional diagnostic/restart commands. COMPUTE is
-    required by SWAN — if swan_cfg["compute"] is missing entirely, this
-    falls back to a plain "COMPUTE STATIONARY" so the .swn file is still
-    valid. Supports either a single compute command (mode/time or
-    tbegc/deltc/tendc) or a list of staged COMPUTE calls via
-    swan_cfg["compute"]["stages"].
-    """
+    """Build the TEST / COMPUTE / HOTFILE context."""
     ctx: dict[str, Any] = {}
 
     test = swan_cfg.get("test", {})
@@ -768,12 +694,7 @@ def build_run_context(
     ss_row: pd.Series,
     run_id: str,
 ) -> dict[str, Any]:
-    """Assemble the full Jinja2 context for one (layout, sea_state) run.
-
-    problem_cfg only contributes identifiers (problem_id); every physical
-    and numerical parameter comes from swan_cfg (already merged with
-    swan_defaults.yaml).
-    """
+    """Assemble the full Jinja2 context for one (layout, sea_state) run."""
     mode = swan_cfg["mode"].upper()
 
     ctx: dict[str, Any] = dict(
@@ -837,7 +758,7 @@ def load_layouts(processed_dir: Path) -> pd.DataFrame:
 def group_layouts(wec_df: pd.DataFrame) -> pd.DataFrame:
     """Group a flat per-WEC table into one row per layout_id with list columns."""
     if "wec_id" not in wec_df.columns:
-        return wec_df  # legacy layouts.parquet already has one row per layout
+        return wec_df
 
     geometry_cols = [
         c for c in ("start_x", "start_y", "end_x", "end_y", "center_x", "center_y")
@@ -854,14 +775,11 @@ def group_layouts(wec_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    """CLI entry point."""
+    """CLI entry point. Reads experiment slug from lock file (written by 01)."""
     parser = argparse.ArgumentParser(description="Build SWAN INPUT files")
-    parser.add_argument("--problem", default="config/problem.yaml",
-                         help="Surrogate-modeling problem definition")
-    parser.add_argument("--swan", default="config/swan.yaml",
-                         help="Project-specific SWAN run configuration")
-    parser.add_argument("--swan-defaults", default="config/swan_defaults.yaml",
-                         help="Pipeline-internal SWAN fallback values")
+    parser.add_argument("--problem", default="config/problem.yaml")
+    parser.add_argument("--swan", default="config/swan.yaml")
+    parser.add_argument("--swan-defaults", default="config/swan_defaults.yaml")
     parser.add_argument("--paths", default="config/paths.yaml")
     parser.add_argument("--max_runs", type=int, default=None,
                          help="Cap total runs (useful for dry-run tests)")
@@ -871,8 +789,13 @@ def main() -> None:
     swan_cfg = load_swan_config(Path(args.swan), Path(args.swan_defaults))
     pths = yaml.safe_load(Path(args.paths).read_text())
 
-    processed_dir = Path(pths["processed_dir"])
-    runs_dir = Path(pths["runs_dir"])
+    # ── Experiment tracking: load slug written by 01 ──
+    exp = load_current_experiment(get_paths())
+    log.info("Experiment: %s", exp.slug)
+
+    # processed_dir and runs_dir are now experiment-scoped
+    processed_dir = exp.processed
+    runs_dir = exp.runs
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     layouts = load_layouts(processed_dir)
