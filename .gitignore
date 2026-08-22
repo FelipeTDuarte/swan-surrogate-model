@@ -34,8 +34,12 @@ data/processed/**/*.parquet
 data/processed/**/*.h5
 data/processed/**/*bathymetry*
 data/processed/**/*bottom*
+data/processed/**/*bot*
 data/processed/**/*grid*
 data/processed/**/*Power*
+data/boundary_conditions/physical_boundaries/
+data/boundary_conditions/virtual_boundaries/
+data/initial_conditions/
 data/archive/
 runs/*/
 

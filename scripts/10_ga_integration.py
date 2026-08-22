@@ -22,6 +22,12 @@ import numpy as np
 import torch
 import yaml
 
+from deap import base, creator, tools, algorithms
+
+from swan_surrogate.training import coords_to_density
+from swan_surrogate.utils import domain_bounds_cached
+
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
@@ -42,7 +48,7 @@ class SurrogateOracle:
 
     def _layout_to_tensor(self, x_coords, y_coords,
                           Hs: float, Tp: float, Dir: float) -> torch.Tensor:
-        from scripts_07_train_model import coords_to_density
+        
         b = self.bounds
         density = coords_to_density(
             x_coords, y_coords,
@@ -97,7 +103,6 @@ def fitness_fn(individual: np.ndarray, n_wecs: int, oracle: SurrogateOracle,
 def run_ga_deap(oracle, cfg, bounds, n_wecs, min_spacing, Hs, Tp, Dir,
                 pop_size=200, n_gen=300, cx_pb=0.6, mut_pb=0.3, alpha=0.6):
     try:
-        from deap import base, creator, tools, algorithms
     except ImportError:
         raise ImportError("DEAP not installed — run: pip install deap")
 
@@ -165,7 +170,6 @@ def main():
     bounds_path = Path(pths["grid_file"])
 
     # Infer bounds from grid file
-    from scripts_utils import domain_bounds_cached
     bounds = domain_bounds_cached(bounds_path)
 
     oracle = SurrogateOracle(ts_path, bounds=bounds, meta=meta)

@@ -90,8 +90,7 @@ fi
 #-----------------------------------------------------------------------
 #
 #  adapt PATH to ensure a locally present executable is executed
-PATH=$PATH: C:/Felipe/Projetos/SNL-SWAN/bin
-
+PATH=$PATH: ~/SNL-SWAN/bin
 
 type swan.exe
 if [ -r $input.swn ]; then

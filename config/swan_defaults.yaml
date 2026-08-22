@@ -1,7 +1,5 @@
 # ==============================================================================
-# swan_defaults.yaml
-#
-# Internal fallback values for every SWAN parameter that build_swan_inputs.py
+# # Internal fallback values for every SWAN parameter that build_swan_inputs.py
 # needs but the user's swan.yaml does not explicitly set.
 #
 # This file ships with the pipeline itself (not per-project). Do not put

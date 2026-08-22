@@ -1,6 +1,4 @@
 # ==============================================================================
-# swan.yaml
-#
 # Project-specific SWAN / SNL-SWAN run configuration.
 #
 # This file is separate from problem.yaml on purpose:
@@ -916,7 +914,7 @@ compute:
 
 layouts:
   transmission_coef: 0.0        # OBSTACLE TRANSM coefficient
-  obcase: 0                     # SNL-SWAN SET OBCASE (0-4)
+  obcase: 3                     # SNL-SWAN SET OBCASE (0-4)
   wec_length_m: 20.0             # used only when layouts export centers only
   wec_angle_deg: 315.0             # WEC normal angle in degrees
   wec_angle_convention: nautical   # nautical | cartesian

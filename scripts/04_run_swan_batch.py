@@ -24,7 +24,7 @@ import yaml
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler()],
+    handlers=[logging.StreamHandler(stream=open("/dev/stdout", "w", encoding="utf-8"))],
 )
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def run_one(run_dir: Path, swan_exec: str, n_threads: int, attempt: int = 1) -> 
     t0 = time.perf_counter()
     result = dict(run_id=run_dir.name, status="failed", wall_time_s=0.0, attempts=attempt)
     try:
-        cmd = [swan_exec, "-input", "INPUT"]
+        cmd = [swan_exec, "-input", "INPUT.swn"]
         if n_threads > 1:
             cmd += ["-omp", str(n_threads)]
         proc = subprocess.run(
@@ -95,7 +95,7 @@ def main():
     processed   = Path(pths["processed_dir"])
     logs_dir    = Path(pths["logs_dir"])
     logs_dir.mkdir(parents=True, exist_ok=True)
-    swan_exec   = pths["swan_executable"]
+    swan_exec   = str(Path(pths["swan_executable"]).resolve())
 
     # Set up file log handler
     fh = logging.FileHandler(logs_dir / "swan_batch.log")
@@ -143,7 +143,7 @@ def main():
     df_all.to_parquet(status_path, index=False)
     n_ok  = (df_all["status"] == "ok").sum()
     n_bad = len(df_all) - n_ok
-    log.info("Batch complete: %d ok  %d failed/other  → %s", n_ok, n_bad, status_path)
+    log.info("Batch complete: %d ok  %d failed/other  -> %s", n_ok, n_bad, status_path)
 
 
 if __name__ == "__main__":

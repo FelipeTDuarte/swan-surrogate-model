@@ -17,7 +17,7 @@ from pathlib import Path
 import torch
 import yaml
 
-from scripts_07_train_model import FNOSurrogate
+from swan_surrogate.training import FNOSurrogate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)

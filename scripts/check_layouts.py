@@ -11,6 +11,7 @@ import json
 import logging
 from pathlib import Path
 
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import numpy as np

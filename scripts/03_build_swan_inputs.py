@@ -902,7 +902,7 @@ def main() -> None:
 
         ctx = build_run_context(problem_cfg, swan_cfg, pths, lr, ssr, run_id)
         input_txt = render_input(tmpl_env, ctx)
-        (run_dir / "INPUT").write_text(input_txt, encoding="utf-8")
+        (run_dir / "INPUT.swn").write_text(input_txt, encoding="utf-8")
 
         meta = dict(
             run_id=run_id, layout_id=int(lr["layout_id"]), sea_state_id=int(ssr["sea_state_id"]),

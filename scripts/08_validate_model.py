@@ -19,7 +19,7 @@ import pandas as pd
 import torch
 import yaml
 
-from scripts_07_train_model import WECDataset, FNOSurrogate
+from swan_surrogate.training import WECDataset, FNOSurrogate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ def main():
     df_test = df[df["split"] == "test"].reset_index(drop=True)
     log.info("Test set: %d samples", len(df_test))
 
-    from scripts_utils import domain_bounds_cached
+    from swan_surrogate.utils.scripts_utils import domain_bounds_cached
     bounds = domain_bounds_cached(Path(pths["grid_file"]))
     ds_test = WECDataset(df_test, bounds)
     loader  = torch.utils.data.DataLoader(

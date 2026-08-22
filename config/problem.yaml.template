@@ -1,5 +1,7 @@
+# ==============================================================================
 # problem.yaml — Contract for a specific surrogate training run
 # Copy this file to problem.yaml and fill in your values.
+# ==============================================================================
 
 problem_id: "PROJECT NAME"   # unique identifier — change with every contract change
 description: " "
