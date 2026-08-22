@@ -90,7 +90,7 @@ fi
 #-----------------------------------------------------------------------
 #
 #  adapt PATH to ensure a locally present executable is executed
-PATH=$PATH:/homes/up200908769/SNL-SWAN/bin
+PATH=$PATH: C:/Felipe/Projetos/SNL-SWAN/bin
 
 
 type swan.exe

@@ -24,9 +24,7 @@ import yaml
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-    ],
+    handlers=[logging.StreamHandler()],
 )
 log = logging.getLogger(__name__)
 
@@ -34,12 +32,15 @@ MAX_ATTEMPTS = 3
 TIMEOUT_S    = 3600  # 1 hour per run
 
 
-def run_one(run_dir: Path, swan_exec: str, attempt: int = 1) -> dict:
+def run_one(run_dir: Path, swan_exec: str, n_threads: int, attempt: int = 1) -> dict:
     t0 = time.perf_counter()
     result = dict(run_id=run_dir.name, status="failed", wall_time_s=0.0, attempts=attempt)
     try:
+        cmd = [swan_exec, "-input", "INPUT"]
+        if n_threads > 1:
+            cmd += ["-omp", str(n_threads)]
         proc = subprocess.run(
-            [swan_exec, "INPUT"],
+            cmd,
             cwd=run_dir,
             capture_output=True,
             text=True,
@@ -60,22 +61,23 @@ def run_one(run_dir: Path, swan_exec: str, attempt: int = 1) -> dict:
         result["status"] = f"error:{exc}"
     return result
 
-
-def run_with_retry(run_dir: Path, swan_exec: str) -> dict:
+def run_with_retry(run_dir: Path, swan_exec: str, n_threads: int) -> dict:
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        res = run_one(run_dir, swan_exec, attempt)
+        res = run_one(run_dir, swan_exec, n_threads, attempt)
         if res["status"] == "ok":
             return res
         if attempt < MAX_ATTEMPTS:
             log.warning("  Retry %d/%d for %s", attempt + 1, MAX_ATTEMPTS, run_dir.name)
     return res
 
-
 def main():
     parser = argparse.ArgumentParser(description="Run SNL-SWAN batch")
     parser.add_argument("--problem",  default="config/problem.yaml")
     parser.add_argument("--paths",    default="config/paths.yaml")
-    parser.add_argument("--workers",  type=int, default=4)
+    parser.add_argument("--workers",  type=int, default=None,
+                        help="Overrides parallelization.n_workers from problem.yaml")
+    parser.add_argument("--threads",  type=int, default=None,
+                        help="Overrides parallelization.n_threads_per_worker from problem.yaml")
     parser.add_argument("--rerun_failed", action="store_true",
                         help="Re-run only previously failed runs")
     parser.add_argument("--dry_run",  action="store_true",
@@ -84,6 +86,10 @@ def main():
 
     cfg  = yaml.safe_load(Path(args.problem).read_text())
     pths = yaml.safe_load(Path(args.paths).read_text())
+
+    par_cfg = cfg.get("parallelization", {})
+    n_workers = args.workers if args.workers is not None else int(par_cfg.get("n_workers", 1))
+    n_threads = args.threads if args.threads is not None else int(par_cfg.get("n_threads_per_worker", 1))
 
     runs_dir    = Path(pths["runs_dir"])
     processed   = Path(pths["processed_dir"])
@@ -107,7 +113,7 @@ def main():
     if args.rerun_failed:
         run_dirs = [d for d in run_dirs if d.name not in existing_ok]
 
-    log.info("Total runs to execute: %d  (workers=%d)", len(run_dirs), args.workers)
+    log.info("Total runs to execute: %d  (workers=%d) (threads=%d)" , len(run_dirs), n_workers, n_threads)
 
     if args.dry_run:
         for d in run_dirs[:10]:
@@ -116,13 +122,13 @@ def main():
 
     results = []
     completed = 0
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(run_with_retry, d, swan_exec): d for d in run_dirs}
+    with ProcessPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(run_with_retry, d, swan_exec, n_threads): d for d in run_dirs}
         for fut in as_completed(futures):
             res = fut.result()
             results.append(res)
             completed += 1
-            if completed % 100 == 0:
+            if 100*completed % len(run_dirs) == 0:
                 n_ok = sum(1 for r in results if r["status"] == "ok")
                 log.info("Progress: %d / %d   ok=%d", completed, len(run_dirs), n_ok)
 
