@@ -29,7 +29,6 @@ class ProjectPaths:
     notebooks: Path
     scripts: Path
     docs: Path
-    blueprints: Path
 
     @property
     def problem_yaml(self) -> Path:
