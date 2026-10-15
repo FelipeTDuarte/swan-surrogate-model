@@ -618,12 +618,12 @@ obstacles:
 #       - {x: 500.0, y: 0.0}
 #       - {x: 500.0, y: 1000.0}
 #
-#   # --- frequency-dependent transmission coefficient (TRANS2D) ---
-#   - transmission: TRANS2D
-#     trcoef: [0.9, 0.7, 0.4, 0.1]    # one value per frequency bin (grid.msc)
-#     line:
-#       - {x: 500.0, y: 0.0}
-#       - {x: 500.0, y: 1000.0}
+  # --- frequency-dependent transmission coefficient (TRANS2D) ---
+  - transmission: TRANS2D
+    trcoef: [0.9, 0.7, 0.4, 0.1]    # one value per frequency bin (grid.msc)
+    line:
+      - {x: 500.0, y: 0.0}
+      - {x: 500.0, y: 1000.0}
 #
 #   # --- Goda-type dam/breakwater transmission ---
 #   - transmission: DAM
@@ -684,17 +684,17 @@ output:
   #   NGRID   'sname' <[xpn][ypn][alpn][xlenn][ylenn][mxn][myn] |
   #                    UNSTRUCTURED <TRIANGLE|EASYMESH> 'fname'>
   # ---------------------------------------------------------------------
-# locations:
-#   # --- FRAME: a regular output sub-grid ---
-#   - type: FRAME
-#     sname: "FRAME1"
-#     xpfr: 0.0
-#     ypfr: 0.0
-#     alpfr: 0.0
-#     xlenfr: 5000.0
-#     ylenfr: 3000.0
-#     mxfr: 250
-#     myfr: 150
+locations:
+  # --- FRAME: a regular output sub-grid ---
+  - type: FRAME
+    sname: "FRAME1"
+    xpfr: 0.0
+    ypfr: 0.0
+    alpfr: 0.0
+    xlenfr: 5000.0
+    ylenfr: 3000.0
+    mxfr: 250
+    myfr: 150
 #
 #   # --- GROUP: a sub-set of the computational grid ---
 #   - type: GROUP
@@ -784,19 +784,19 @@ output:
   # OUTPUT OPTIONS — formatting defaults applied to TABLE/BLOCK/SPEC output
   # swan.edt: OUTPut OPTIons 'comment' (TABle [field]) (BLOck [ndec][len]) (SPEC [ndec])
   # ---------------------------------------------------------------------
-# output_options:
+output_options:
 #   comment: "$"                    # comment character used in TABLE headers
 #   table_field: 12                 # field width for TABLE output columns
 #   block_ndec: 4                   # number of decimals for BLOCK output
-#   block_len: 12                   # field length for BLOCK output
+    block_len: 12                   # field length for BLOCK output
 #   spec_ndec: 4                    # number of decimals for SPEC output
 
   # ---------------------------------------------------------------------
   # OUTPUT REQUESTS — BLOCK, TABLE, SPECOUT, NESTOUT. Each entry writes
   # results for a 'location' defined above to a file.
   # swan.edt:
-  #   BLOCk 'sname' <HEADER|NOHEADER> 'fname' (LAY-OUT [idla])
-  #         <quantity-list> ([unit]) (OUTPUT [tbegblk][deltblk] SEC|MIN|HR|DAY)
+    BLOCk 'sname' <HEADER|NOHEADER> 'fname' (LAY-OUT [idla])
+          <quantity-list> ([unit]) (OUTPUT [tbegblk][deltblk] SEC|MIN|HR|DAY)
   #   TABLE 'sname' <HEADER|NOHEADER|INDEXED> 'fname'
   #         <quantity-list> ([unit]) (OUTPUT [tbegtbl][delttbl] SEC|MIN|HR|DAY)
   #   SPECout 'sname' <SPEC1D|SPEC2D> <ABS|REL> <S|L> 'fname'
@@ -885,7 +885,7 @@ compute:
   mode: STATIONARY                 # STATIONARY | NONSTATIONARY
 
   # --- used if mode: STATIONARY ---
-  # time: "20260101.000000"        # optional; omit for a single-time stationary run
+  time: "20260101.000000"        # optional; omit for a single-time stationary run
 
   # --- used if mode: NONSTATIONARY ---
   # tbegc: "20260101.000000"
